@@ -15,8 +15,9 @@ X = np.random.rand(NPOINTS, 2)
 Y = (X[:, 0]**2 + X[:, 1]**2).reshape(-1, 1)
 #Xpareto, Ypareto, paretoIndex, Xdominated, Ydominated, dominatedIndex = Pareto.computeParetoOptimalMember(X,X)
 
-ranked = Pareto.computeParetoRanks(X, X, targetdirection=[-1, 1])
+ranked = Pareto.computeParetoRanks(X, X, targetdirection=[-1, -1])
 Xranked, Yranked, rank = Pareto.rankedToRanks(ranked)
 
-plt.scatter(Xranked[:, 0], Xranked[:, 1], c=rank)
+sc = plt.scatter(Xranked[:, 0], Xranked[:, 1], c=rank)
+plt.colorbar(sc)
 plt.show()
