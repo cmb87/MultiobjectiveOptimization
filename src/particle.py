@@ -8,10 +8,9 @@ from src.pareto import Pareto
 class Particle(object):
     """docstring for Particle"""
 
-    def __init__(self, particleID, tfct, xlb, xub, ylb, yup, vlb=None, vub=None):
+    def __init__(self, particleID):
 
         self.particleID = particleID
-        self.tfct = tfct
 
         self.w = 1.0
         self.c1 = 0.5
@@ -39,5 +38,5 @@ class Particle(object):
         r2 = np.random.rand()
 
         ### Update particle velocity ###
-        self.v = self.W * self.v + self.c1 * r1 * (self.xpbest - self.x) + self.c2 * r2 * (self.xgbest - self.x)
+        self.v = self.w * self.v + self.c1 * r1 * (self.xpbest - self.x) + self.c2 * r2 * (self.xgbest - self.x)
         self.x = self.x + self.v
