@@ -4,9 +4,9 @@ import os
 import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
-from src.common.utils import Utils
+from src.logger import getLogger
 
-logger = Utils.get_logger(__name__)
+logger = getLogger(__name__)
 
 class Database(object):
 
