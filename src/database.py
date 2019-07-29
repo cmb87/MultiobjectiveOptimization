@@ -86,7 +86,7 @@ class Database(object):
         return False
 
     @staticmethod
-    def insertMany(self, tablename, rows, columnNames=None):
+    def insertMany(tablename, rows, columnNames=None):
         """
         Insert multiple entries
         db.insertMany("cars", (("Audi", 3000), ("VW", 1000)), columnNames=["name", "price"])

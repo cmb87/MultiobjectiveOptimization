@@ -8,12 +8,14 @@ from src.database import Database
 ### Generic Optimizer class ###
 class Optimizer(object):
 
+    TABLENAME = "Optimization"
     """docstring for Particle"""
     TARGETDIRECTION = {"maximize": 1, "minimize": -1,
                        "max": 1, "min": -1, 1: 1, -1: -1, "1": 1, "-1": 1}
 
     ### Constructor ###
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], itermax=10, optimizationDirection=None):
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], itermax=10, optimizationDirection=None, nichingDistanceY=0.1,
+                  nichingDistanceX=0.1, epsDominanceBins=6):
 
         self.fct = fct
         self.itermax = itermax
@@ -31,15 +33,21 @@ class Optimizer(object):
         self.Xbest, self.Ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
 
         ### Niching parameters ###
-        self.delta_y = 0.1
-        self.delta_x = 0.5
-        self.epsDominanceBins = 6
+        self.delta_y = nichingDistanceY
+        self.delta_x = nichingDistanceX
+        self.epsDominanceBins = epsDominanceBins
 
         ### Sanity checks ###
         assert np.any(self.xlb<self.xub), "X: Lower bound must be smaller than upper bound"
         assert np.any(self.ylb<self.yub), "Y: Lower bound must be smaller than upper bound"
         assert np.any(self.clb<self.cub), "C: Lower bound must be smaller than upper bound"
         assert len(self.targetdirection) == self.ylb.shape[0], "Target directions and number of targets dimension must match!"
+
+        ### Database ###
+        self.paralabels=["para_{}".format(p) for p in range(self.nparas)]
+        self.trgtlabels=["trgt_{}".format(p) for p in range(self.ntrgts)]
+        ### Initialize table ###
+        self.createTable()
 
     ### Augmented boundaries ###
     @property
@@ -182,13 +190,29 @@ class Optimizer(object):
     def _dimensionalize(x, lb, ub):
         return lb + x * (ub - lb)
 
-    ### Compare with external archive ###
-    def compareWithArchive(self):
-        pass
+
+    ### Create table ###
+    def createTable(self, xlabels=None, ylabels=None):
+        columns = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT"} 
+        self.paralabels = self.paralabels if xlabels is None else xlabels
+        self.trgtlabels = self.trgtlabels if ylabels is None else ylabels
+
+        assert len(self.paralabels) == self.nparas, "x labels dimension must match vector length"
+        assert len(self.trgtlabels) == self.ntrgts, "y labels dimension must match vector length"
+
+        for xlabel in self.paralabels:
+            columns[xlabel] = "FLOAT"
+        for ylabel in self.trgtlabels:
+            columns[ylabel] = "FLOAT"
+
+        Database.delete_table(Optimizer.TABLENAME)
+        Database.create_table(Optimizer.TABLENAME, columns)
+        print("Database created!")
 
     ### Store to archive ###
-    def store(self):
-        pass
+    def store(self, X, Y):
+        data_labels = self.paralabels + self.trgtlabels
+        Database.insertMany(Optimizer.TABLENAME, rows=np.hstack((X, Y)).tolist(), columnNames=data_labels)
 
     ### add to database ###
     def archiveStore(self):
@@ -200,9 +224,13 @@ class Optimizer(object):
 
 ### Particle Swarm Optimizer ###
 class Swarm(Optimizer):
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, itermax=10, optimizationDirection=None):
-        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, itermax=itermax, optimizationDirection=optimizationDirection)
 
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, itermax=10, optimizationDirection=None, 
+                          nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6):
+        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, itermax=itermax, optimizationDirection=optimizationDirection, 
+                          nichingDistanceY=nichingDistanceY, nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins)
+
+        ### Initialize swarm ###
         self.particles = [Particle(self.nparas, pid, vinitScale=0.5) for pid in range(nparticles)]
         self.Xbest, self.Ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
 
@@ -269,10 +297,12 @@ class Swarm(Optimizer):
             #Ydim = Optimizer._nondimensionalize(self.Ybest[:,:], self.ylb, self.yub)
             #Ydim = 0.5*(1-self.targetdirection) + self.targetdirection*Ydim
             #plt.plot(Ydim[:,0], Ydim[:,1], 'ro')
+            # plt.show()
+
+            ### Store to DB ###
+            self.store(X, Yaug[:,:-1])
 
 
-
-            plt.show()
             ### Only for cinematic mode ###
             if visualize:
                 Xcine[n,:,:] = X

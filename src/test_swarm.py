@@ -16,15 +16,19 @@ from src.test_functions import rosenbrockContourConstrained
 from src.test_functions import binhAndKorn
 from src.test_functions import animateSwarm, animateSwarm2
 
+from src.database import Database
 
-if True:
-    itermax = 80
+
+
+if False:
+    itermax = 30
     xbounds = [(0,5),(0,3)]
     ybounds = [(0,150),(0,150)]
     cbounds = [(0, 25),(7.7, 1e+5)]
 
 
-    swarm = Swarm(binhAndKorn, xbounds, ybounds, cbounds, itermax=itermax, optimizationDirection=["minimize", "minimize"])
+    swarm = Swarm(binhAndKorn, xbounds, ybounds, cbounds, itermax=itermax, optimizationDirection=["minimize", "minimize"], 
+                  nichingDistanceX=0.1, nichingDistanceY=0.1, epsDominanceBins=8)
     swarm.initialize()
     Xcine, Ycine = swarm.iterate(visualize=True)
 
@@ -32,7 +36,7 @@ if True:
 
 
 
-if False:
+if True:
     itermax = 20
     xbounds = [(-4,4),(-4,4)]
     ybounds = [(0,13500)]
@@ -44,3 +48,5 @@ if False:
 
     animateSwarm(Xcine, Ycine, rosenbrockContourConstrained, xbounds=xbounds, store=False)
 
+print(Database.find("Optimization"))
+sys.exit()
