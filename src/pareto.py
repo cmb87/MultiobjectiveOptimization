@@ -23,53 +23,29 @@ class Pareto(object):
 
     @staticmethod
     def dominates(row, rowCandidate):
-        return all(r >= rc for r, rc in zip(row, rowCandidate))
+        return all(r <= rc for r, rc in zip(row, rowCandidate))
+
 
     @staticmethod
-    def computeParetoOptimalMember(X, Y, targetdirection=None):
-        tdir = np.asarray(Y.shape[1] * [-1]) if targetdirection is None else np.asarray(targetdirection)
-        assert len(tdir) == Y.shape[1], "Target direction must match feature count"
+    def computeParetoOptimalMember(Y, index=None):
+        index = np.arange(0,Y.shape[0]) if index is None else index
 
-        Y = tdir * Y.copy()
         Ypareto, Ydominated = Pareto.cull(Y.tolist(), Pareto.dominates)
 
-        paretoIndex = [np.where(Y == ypareto)[0][0] for i, ypareto in enumerate(Ypareto)]
-        dominatedIndex = [np.where(Y == ydominated)[0][0] for i, ydominated in enumerate(Ydominated)]
+        paretoIndex = [index[np.where(Y == ypareto)[0][0]] for i, ypareto in enumerate(Ypareto)]
+        dominatedIndex = [index[np.where(Y == ydominated)[0][0]] for i, ydominated in enumerate(Ydominated)]
 
-        Xpareto = np.asarray([X[p, :] for i, p in enumerate(paretoIndex)])
-        Xdominated = np.asarray([X[p, :] for i, p in enumerate(dominatedIndex)])
+        return paretoIndex, dominatedIndex
 
-        Ypareto = tdir * np.asarray(Ypareto)
-        if len(Ydominated) > 0:
-            Ydominated = tdir * np.asarray(Ydominated)
-
-        return Xpareto, Ypareto, paretoIndex, Xdominated, Ydominated, dominatedIndex
 
     @staticmethod
-    def computeParetoRanks(X, Y, targetdirection=None):
-
-        Xunranked, Yunranked = X.copy(), Y.copy()
+    def computeParetoRanks(Y):
+        indexunranked = np.arange(0,Y.shape[0])
+        ranks = np.zeros(Y.shape[0])
         paretoRank = 0
-        ranked = {}
-
-        while Xunranked.shape[0] > 1:
-            Xpareto, Ypareto, paretoIndex, Xunranked, Yunranked, _ = Pareto.computeParetoOptimalMember(Xunranked, Yunranked, targetdirection=targetdirection)
-            ranked[paretoRank] = {"Xpareto": Xpareto, "Ypareto": Ypareto, "ParetoIndex": paretoIndex}
+        while len(indexunranked) > 0:
+            paretoIndex, indexunranked = Pareto.computeParetoOptimalMember(Y[indexunranked], index=indexunranked)
+            ranks[paretoIndex] = paretoRank
             paretoRank += 1
+        return ranks
 
-        return ranked
-
-    @staticmethod
-    def rankedToRanks(ranked):
-        feats = ranked[0]["Xpareto"].shape[1]
-        trgts = ranked[0]["Ypareto"].shape[1]
-
-        Xranked, Yranked = np.zeros((0, feats)), np.zeros((0, trgts))
-        rank = np.zeros(0)
-
-        for key, pareto in ranked.items():
-            Xranked = np.vstack((Xranked, pareto["Xpareto"]))
-            Yranked = np.vstack((Yranked, pareto["Ypareto"]))
-            rank = np.hstack((rank, np.asarray(pareto["Xpareto"].shape[0] * [key])))
-
-        return Xranked, Yranked, rank

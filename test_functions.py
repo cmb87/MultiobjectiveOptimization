@@ -3,6 +3,17 @@ import os
 from matplotlib import animation
 import matplotlib.pyplot as plt
 
+
+def coordinatesSplitter(X):
+    if X.ndim == 2:
+        x,y = X[:,0],X[:,1]
+    elif X.ndim == 1:
+        x,y = X[0],X[1]
+    else:
+        print("Datatype not understood")
+        return
+    return x,y
+
 def xchecker(func):
     def wrapper(X):
         if X.ndim == 2:
@@ -15,10 +26,16 @@ def xchecker(func):
         return func(x,y)
     return wrapper
 
-
 ### ROSENBROCK ###
 @xchecker
-def rosenbrock(x,y):
+def rosenbrockDecorated(x,y):
+    a,b = 1, 100
+    return (a-x)**2 + b*(y-x**2)**2, None
+
+
+### ROSENBROCK ###
+def rosenbrock(X):
+    x,y = coordinatesSplitter(X)
     a,b = 1, 100
     return (a-x)**2 + b*(y-x**2)**2, None
 
@@ -29,8 +46,9 @@ def rosenbrockContour(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)]):
     zz = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)[0].reshape(imax,jmax)
     return [xx,yy,zz], [[0,0]]
 
-@xchecker
-def rosenbrockConstrained(x, y):
+
+def rosenbrockConstrained(X):
+    x,y = coordinatesSplitter(X)
     a,b = 1, 100
     return (a-x)**2 + b*(y-x**2)**2, ((x-2)**2+(y+2)**2)**0.5
 
@@ -44,8 +62,9 @@ def rosenbrockContourConstrained(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)],cradiu
     phi = np.linspace(0,2*np.pi,30)
     return [xx,yy,zz], [[2+cradius*np.cos(phi),-2+cradius*np.sin(phi)]]
 
-@xchecker
-def binhAndKorn(x,y):
+
+def binhAndKorn(X):
+    x,y = coordinatesSplitter(X)
     f1 = 4*x**2 + 4*y**2
     f2 = (x-5)**2 + (y-5)**2
 

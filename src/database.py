@@ -92,8 +92,13 @@ class Database(object):
         db.insertMany("cars", (("Audi", 3000), ("VW", 1000)), columnNames=["name", "price"])
         db.insertMany("cars", ((5, "Hummer2", 3000), (6, "Audi", 4000)))
         """
+        if len(rows) == 0:
+            logger.info("Nothing to insert!")
+            return
+
         placeholder = ', '.join(len(rows[0]) * ['?'])
         con = lite.connect(Database.PATH2DB)
+
         try:
             with con:
                 cur = con.cursor()
@@ -108,11 +113,29 @@ class Database(object):
             logger.warning("{}".format(e))
         return False
 
+
+    @staticmethod
+    def insertManyInChunks(tablename, rows, columnNames, chunksize=200):
+        if len(rows[0])< 999:
+            logger.info("This is unnecessary! Use insertMany instead")
+            return Database.insertMany(tablename, rows, columns)
+
+        for start in range(0, len(rows[0]), chunksize):
+            end = start+chunksize if start+chunksize< len(rows[0]) else len(rows[0])
+            subrows = [x[start:end] for x in rows]
+            subcolumns = columnNames[start:end]
+            Database.insertMany(tablename, subrows, subcolumns)
+        return True
+
     @staticmethod
     def insert(tablename, rows):
         """
         Insert a list of dictionaries
         """
+        if len(rows) == 0:
+            logger.info("Nothing to insert!")
+            return
+
         con = lite.connect(Database.PATH2DB)
         for row in rows:
             placeholders = ', '.join(['?' for key, val in row.items()])
@@ -183,7 +206,7 @@ class Database(object):
         return keys, vals
 
     @staticmethod
-    def find(tablename, query=None, one=False):
+    def find(tablename, variables=None, query=None, one=False, distinct=False):
         """Summary
 
         Args:
@@ -195,6 +218,15 @@ class Database(object):
         """
         if not query is None:
             keys, vals = Database._queryProcessor(query)
+        if variables is None:
+            variables = ['*']
+        elif not isinstance(variables,list):
+            logger.warning("variables must be a list!")
+            return
+        if distinct:
+            distinct = "DISTINCT"
+        else:
+            distinct = ""
 
         con = lite.connect(Database.PATH2DB)
         try:
@@ -202,9 +234,9 @@ class Database(object):
                 con.row_factory = lite.Row
                 cur = con.cursor()
                 if not query is None:
-                    cur.execute("SELECT {} FROM {} WHERE {}".format('*', tablename, ' AND '.join(keys)), vals)
+                    cur.execute("SELECT {} {} FROM {} WHERE {}".format(distinct, ', '.join(variables), tablename, ' AND '.join(keys)), vals)
                 else:
-                    cur.execute("SELECT {} FROM {}".format('*', tablename))
+                    cur.execute("SELECT {} {} FROM {}".format(distinct, ', '.join(variables), tablename))
 
                 if one:
                     return dict(cur.fetchone())

@@ -1,24 +1,38 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import sys
+import pickle
+import functools
+from multiprocessing import Process
+from multiprocessing import Pipe 
 
 from src.particle import Particle
 from src.pareto import Pareto
 from src.database import Database
 
+
+class my_decorator(object):
+    def __init__(self, target):
+        self.target = target
+
+    def __call__(self, x, i, send_end):
+        output = self.target(x)
+        return send_end.send([i,output])
+
+
 ### Generic Optimizer class ###
 class Optimizer(object):
 
     TABLENAME = "Optimization"
-    """docstring for Particle"""
-    TARGETDIRECTION = {"maximize": 1, "minimize": -1,
-                       "max": 1, "min": -1, 1: 1, -1: -1, "1": 1, "-1": 1}
+    TABLEBEST = "OptimizationBest"
 
     ### Constructor ###
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], itermax=10, optimizationDirection=None, nichingDistanceY=0.1,
-                  nichingDistanceX=0.1, epsDominanceBins=6):
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], nichingDistanceY=0.1,
+                  nichingDistanceX=0.1, epsDominanceBins=6, nparallel=1):
 
         self.fct = fct
-        self.itermax = itermax
+        self.currentIteration = 0
         self.nparas = len(xbounds)
         self.ntrgts = len(ybounds)
         self.ncstrs = len(cbounds)
@@ -26,9 +40,6 @@ class Optimizer(object):
         self.xlb, self.xub = np.asarray([x[0] for x in xbounds]), np.asarray([x[1] for x in xbounds])
         self.ylb, self.yub = np.asarray([x[0] for x in ybounds]), np.asarray([x[1] for x in ybounds])
         self.clb, self.cub = np.asarray([x[0] for x in cbounds]), np.asarray([x[1] for x in cbounds])
-
-        optimizationDirection = self.ylb.shape[0]*["minimize"] if optimizationDirection is None else optimizationDirection 
-        self.targetdirection = np.asarray([Optimizer.TARGETDIRECTION[x] for x in optimizationDirection])
 
         self.Xbest, self.Ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
 
@@ -40,44 +51,58 @@ class Optimizer(object):
         ### Sanity checks ###
         assert np.any(self.xlb<self.xub), "X: Lower bound must be smaller than upper bound"
         assert np.any(self.ylb<self.yub), "Y: Lower bound must be smaller than upper bound"
-        assert np.any(self.clb<self.cub), "C: Lower bound must be smaller than upper bound"
-        assert len(self.targetdirection) == self.ylb.shape[0], "Target directions and number of targets dimension must match!"
+        if self.clb.shape[0]>0:
+            assert np.any(self.clb<self.cub), "C: Lower bound must be smaller than upper bound"
 
         ### Database ###
         self.paralabels=["para_{}".format(p) for p in range(self.nparas)]
         self.trgtlabels=["trgt_{}".format(p) for p in range(self.ntrgts)]
-        ### Initialize table ###
-        self.createTable()
+        self.cstrlabels=["cstr_{}".format(p) for p in range(self.ncstrs)]
 
-    ### Augmented boundaries ###
-    @property
-    def yauglb(self):
-        return np.append(self.ylb, 0.0)
-    
-    @property
-    def yaugub(self):
-        return np.append(self.yub, 1.0)
-
-    @property
-    def targetdirectionAug(self):
-        return np.append(self.targetdirection, -1)
-
+        self.nparallel=nparallel
+ 
     ### Evaluate function ###
     def evaluate(self, X):
+
         ### Evaluate toolchain ###
-        output = self.fct(X)
-
-        ### Check toolchain output ###
-        if isinstance(output,tuple):
-            Y, C = output[0], output[1]
-        elif isinstance(output,np.ndarray):
-            Y, C = output[0], np.zeros((X.shape[0],0))
+        if self.nparallel == 1:
+            output = [self.fct(X[i,:]) for i in range(X.shape[0])]
+            Y = np.asarray([x[0] for x in output]).reshape(X.shape[0], self.ntrgts)
+            if self.ncstrs>0:
+                C = np.asarray([x[1] for x in output]).reshape(X.shape[0], self.ncstrs)
+            else:
+                C = np.zeros((X.shape[0], self.ncstrs))
         else:
-            print("ERROR: Datatype {} unkown".format(type(output)))
-            return
+            ### Initialize parallel processes ###
+            processes, pipe_list = [], []
+            Y,C = X.shape[0]*[0], X.shape[0]*[0]
 
-        Y = Optimizer._sanityCheck(Y, X.shape[0], self.ntrgts)
-        C = Optimizer._sanityCheck(C, X.shape[0], self.ncstrs)
+            ### loop over different designs ###
+            for i in range(X.shape[0]):
+                
+                x = X[i,:]
+                ### Run WFF ###
+                recv_end, send_end = Pipe(False)
+
+                p = Process(target=my_decorator(self.fct), args=(x, i, send_end))
+                processes.append(p)
+                pipe_list.append(recv_end)
+                p.start()
+
+                loop = (self.nparallel-1) if i<(X.shape[0]-1) else 0
+
+                while len(processes) > loop:
+                    for proc, pipe in zip(processes, pipe_list):
+                        if not proc.is_alive():
+                            [idesign, output] = pipe.recv()
+                            Y[idesign], C[idesign] = output[0], output[1]
+                            processes.remove(proc)
+                            pipe_list.remove(pipe)
+
+
+            ### Reshape ###
+            Y = np.asarray(Y).reshape(X.shape[0], self.ntrgts)
+            C = np.asarray(C).reshape(X.shape[0], self.ncstrs)
 
         ### Build penalty function ###
         Py = Optimizer.boundaryCheck(Y, self.ylb, self.yub)
@@ -85,9 +110,24 @@ class Optimizer(object):
         Pc = Optimizer.boundaryCheck(C, self.clb, self.cub)
         P  = (Py+Px+Pc)
 
-        ### Augmented ###
-        Yaug = np.hstack((Y,P))
-        return Yaug, Y, C, P
+        ### Return to optimizer ###
+        return Y, C, P
+
+    ### Store it ###
+    def store(self, X, Y, C, P):
+        it = self.currentIteration*np.ones((X.shape[0], 1))
+        Database.insertMany(Optimizer.TABLENAME, rows=np.hstack((it, X, Y, C, P)).tolist(), 
+                            columnNames=["iter"]+self.paralabels+self.trgtlabels+self.cstrlabels+["penalty"])
+
+        it = self.currentIteration*np.ones((self.Xbest.shape[0], 1))
+        Database.insertMany(Optimizer.TABLEBEST, rows=np.hstack((it, self.Xbest, self.Ybest)).tolist(), 
+                            columnNames=["iter"]+self.paralabels+self.trgtlabels)
+
+    ### Initialize ###
+    def initialize(self):
+        ### Initialize table ###
+        self.createTable()
+        self.currentIteration = 0
 
     ### Check boundary violation and penalizis it ###
     @staticmethod
@@ -97,36 +137,23 @@ class Optimizer(object):
         Y[~index] = 0.0
         return np.sum(Y**2,axis=1).reshape(-1,1) 
 
-    ### Sanity check response ###
-    @staticmethod
-    def _sanityCheck(Y, itarget, jtarget):
-        if isinstance(Y,list):
-            Y = np.asarray(Y)
-        elif Y is None:
-            Y = np.zeros((itarget,0))
-        if Y.ndim == 1:
-            Y = Y.reshape(-1, 1)
-        assert Y.shape[0] == itarget and Y.shape[1] == jtarget, "Response shape {} does not match agreed shape ({},{})".format(Y.shape,itarget,jtarget)
-        return Y
-
     ### Update leader particle without external archive ###
-    def findParetoMembers(self, X, Yaug):
+    def findParetoMembers(self, X, Y, P):
         ### Only designs without penality violation ###
-        validIndex = Yaug[:,-1] == 0.0
+        validIndex = P[:,0] == 0.0
         
         ### Some designs are valid ###
-        if Yaug[validIndex].shape[0] > 0:
-            Yvalid, X = Yaug[validIndex,:-1].reshape(-1,self.ntrgts), X[validIndex,:].reshape(-1,self.nparas)
+        if P[validIndex].shape[0] > 0:
+
             # Calculate pareto ranks
-            X = np.vstack((self.Xbest, X))
-            Y = np.vstack((self.Ybest, Yvalid))
-            Xpareto, Ypareto, paretoIndex, _, _, _ = Pareto.computeParetoOptimalMember(X, Y, targetdirection=self.targetdirection)
+            X = np.vstack((self.Xbest, X[validIndex,:]))
+            Y = np.vstack((self.Ybest, Y[validIndex,:]))
 
+            paretoIndex, dominatedIndex = Pareto.computeParetoOptimalMember(Y)
+            Xpareto, Ypareto = X[paretoIndex,:], Y[paretoIndex,:]
+            Ppareto = np.zeros((Xpareto.shape[0],1))
             ### Update best particle archive ###                                                
-            self.Xbest, self.Ybest = Xpareto, Ypareto.copy()
-
-            ### Add zero columns again to keep it compatible ###
-            Ypareto = np.hstack((Ypareto, np.zeros((Ypareto.shape[0],1))))
+            self.Xbest, self.Ybest = Xpareto, Ypareto
 
             ### Probality of being a leader ###
             py = Optimizer.neighbors(Ypareto, self.delta_y)
@@ -135,11 +162,12 @@ class Optimizer(object):
 
         ### All designs have a penalty ==> Move to point with lowest violation ###
         else:
-            index = np.argmin(Yaug[:,-1])
-            Ypareto, Xpareto = Yaug[index, :].reshape(1,self.ntrgts+1), X[index, :].reshape(1,self.nparas)
+            index = np.argmin(P, axis=0)
+            Ypareto, Xpareto = Y[index, :].reshape(1,self.ntrgts), X[index, :].reshape(1,self.nparas)
+            Ppareto = np.zeros((Xpareto.shape[0],1))
             pvals = np.ones(1)
 
-        return  Xpareto, Ypareto, pvals/pvals.sum()
+        return  Xpareto, Ypareto, Ppareto, pvals/pvals.sum()
 
 
     @staticmethod
@@ -161,8 +189,7 @@ class Optimizer(object):
 
         for n in range(self.Ybest.shape[0]):
             Ydim = Optimizer._nondimensionalize(self.Ybest[n,:], self.ylb, self.yub)
-            Ydim = 0.5*(1-self.targetdirection) + self.targetdirection*Ydim
-
+            
             inds = np.digitize(Ydim, bins)
             
             inds_key = '-'.join(map(str,inds))
@@ -192,32 +219,162 @@ class Optimizer(object):
 
 
     ### Create table ###
-    def createTable(self, xlabels=None, ylabels=None):
-        columns = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT"} 
-        self.paralabels = self.paralabels if xlabels is None else xlabels
-        self.trgtlabels = self.trgtlabels if ylabels is None else ylabels
+    def createTable(self):
+        columns = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT", "iter": "INT"} 
+        for xlabel in self.paralabels:
+            columns[xlabel] = "FLOAT"
+        for ylabel in self.trgtlabels:
+            columns[ylabel] = "FLOAT"
+        for clabel in self.cstrlabels:
+            columns[clabel] = "FLOAT"
+        columns["penalty"] = "FLOAT"
 
-        assert len(self.paralabels) == self.nparas, "x labels dimension must match vector length"
-        assert len(self.trgtlabels) == self.ntrgts, "y labels dimension must match vector length"
+        Database.delete_table(Optimizer.TABLENAME)
+        Database.create_table(Optimizer.TABLENAME, columns)
 
+        ### Table for Pareto members ###
+        columns = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT", "iter": "INT"} 
         for xlabel in self.paralabels:
             columns[xlabel] = "FLOAT"
         for ylabel in self.trgtlabels:
             columns[ylabel] = "FLOAT"
 
-        Database.delete_table(Optimizer.TABLENAME)
-        Database.create_table(Optimizer.TABLENAME, columns)
+        Database.delete_table(Optimizer.TABLEBEST)
+        Database.create_table(Optimizer.TABLEBEST, columns)
         print("Database created!")
 
-    ### Store to archive ###
-    def store(self, X, Y):
-        data_labels = self.paralabels + self.trgtlabels
-        Database.insertMany(Optimizer.TABLENAME, rows=np.hstack((X, Y)).tolist(), columnNames=data_labels)
+
+    ### Restart ###
+    def restart(self):
+        self.Xbest, self.Ybest = self.postprocessReturnBest()
+
+
+    ### Get names ###
+    @staticmethod
+    def splitColumnNames():
+        columnNames = [x[1] for x in Database.getMetaData(Optimizer.TABLENAME)][2:]
+        xlabels, ylabels, clabels = [],[],[]
+        for name in columnNames:
+            if name[:4] == "para":
+                xlabels.append(name)
+            elif name[:4] == "trgt":
+                ylabels.append(name)
+            elif name[:4] == "cstr":
+                clabels.append(name)
+        return xlabels, ylabels, clabels
+
+    ### Return ###
+    @staticmethod
+    def postprocessReturnAll():
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"])]
+        xlabels, ylabels, clabels = Optimizer.splitColumnNames()
+
+        X = np.asarray([[d[k] for k in xlabels] for d in Database.find(Optimizer.TABLENAME, variables=xlabels)])
+        Y = np.asarray([[d[k] for k in ylabels] for d in Database.find(Optimizer.TABLENAME, variables=ylabels)])
+        C = np.asarray([[d[k] for k in clabels] for d in Database.find(Optimizer.TABLENAME, variables=clabels)])
+        P = np.asarray([[d[k] for k in ["penalty"]] for d in Database.find(Optimizer.TABLENAME, variables=["penalty"])])
+        return iters, X, Y, C, P
+
+
+    ### Return averaged values ###
+    @staticmethod
+    def postprocessReturnStatistics():
+        iters_distinct = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], distinct=True)]
+        xlabels, ylabels, clabels = Optimizer.splitColumnNames()
+        dataAll = []
+
+        for labels in [xlabels,ylabels,clabels]:
+
+            data_mean= np.zeros((len(iters_distinct), len(labels)))
+            data_max = np.zeros((len(iters_distinct), len(labels)))
+            data_min = np.zeros((len(iters_distinct), len(labels)))
+            data_std = np.zeros((len(iters_distinct), len(labels)))
+
+            for n, it in enumerate(iters_distinct):
+                data = np.asarray([[d[k] for k in labels] for d in Database.find(Optimizer.TABLENAME, variables=labels, 
+                                                                                    query={"iter":["=",it]})])
+                data_mean[n,:] = data.mean(axis=0)
+                data_max[n,:] = data.max(axis=0)
+                data_min[n,:] = data.min(axis=0)
+                data_std[n,:] = data.std(axis=0)
+
+            dataAll.append([data_mean,data_max,data_min,data_std])
+        return iters_distinct, dataAll
 
     ### add to database ###
-    def archiveStore(self):
-        pass
+    def postprocess(self, resdir='./', store=False, xlabel=None, ylabel=None, clabel=None):
 
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], 
+                                                  distinct=True)]
+
+        columnNames = [x[1] for x in Database.getMetaData(Optimizer.TABLENAME)][2:]
+
+        data_mean= np.zeros((len(iters), len(columnNames)))
+        data_max = np.zeros((len(iters), len(columnNames)))
+        data_min = np.zeros((len(iters), len(columnNames)))
+        data_std = np.zeros((len(iters), len(columnNames)))
+
+        for n, it in enumerate(iters):
+            data = np.asarray([[d[k] for k in columnNames] for d in Database.find(Optimizer.TABLENAME, 
+                                                                                  query={"iter":["=",it]})])
+            data_mean[n,:] = data.mean(axis=0)
+            data_max[n,:] = data.max(axis=0)
+            data_min[n,:] = data.min(axis=0)
+            data_std[n,:] = data.std(axis=0)
+
+        ### Bounds ###
+        lb = self.xlb.tolist()+self.ylb.tolist()+self.clb.tolist()+[0]
+        ub = self.xub.tolist()+self.yub.tolist()+self.cub.tolist()+[0]
+
+        clabel = self.cstrlabels if clabel is None else clabel
+        xlabel = self.paralabels if xlabel is None else xlabel
+        ylabel = self.trgtlabels if ylabel is None else ylabel
+
+        assert len(self.cstrlabels) == len(clabel), "C Label must match dimensions!"
+        assert len(self.paralabels) == len(xlabel), "C Label must match dimensions!"
+        assert len(self.trgtlabels) == len(ylabel), "C Label must match dimensions!"
+
+        ### Plot it ###
+        for n, var in enumerate(xlabel+ylabel+clabel+["penalty"]):
+            fig, ax1 = plt.subplots()
+
+            for k, (data, style) in enumerate(zip([data_mean, data_max, data_min, data_std], ['k-','b-','r-','--'])):
+
+                ax1.axhline(y=lb[n], color='r', linestyle='--')
+                ax1.axhline(y=ub[n], color='r', linestyle='--')
+                if k == 3:
+                    ax1.plot(iters,data_mean[:,n]+data[:,n],style, color="gray")
+                    ax1.plot(iters,data_mean[:,n]-data[:,n],style, color="gray")
+                else:
+                    ax1.plot(iters,data[:,n],style, lw=3)
+
+                ax2 = ax1.twinx()
+                #ax2.plot(data[:,0],data[:,5],'m-',lw=3)
+                #ax2.set_ylabel('Mean Pareto Change')
+
+            ax1.set_xlabel("Iterations")
+            ax1.set_ylabel(var)
+            ax1.grid(True)
+            if store:
+                plt.savefig(os.path.join(resdir, "opti_{}.png".format(var)))
+                plt.close()
+            else:
+                plt.show()
+
+    ### Return best values ###
+    def postprocessReturnBest(self):
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], 
+                                                  distinct=True)]
+
+        Xbest = np.asarray([[d[k] for k in self.paralabels] for d in Database.find(Optimizer.TABLENAME,
+                                                                                  variables=self.paralabels,
+                                                                                  query={"iter":["=",iters[-1]]})])
+
+        Ybest = np.asarray([[d[k] for k in self.trgtlabels] for d in Database.find(Optimizer.TABLENAME,
+                                                                                  variables=self.trgtlabels,
+                                                                                  query={"iter":["=",iters[-1]]})])
+
+        return Xbest, Ybest, iters[-1]
 
 
 
@@ -225,14 +382,16 @@ class Optimizer(object):
 ### Particle Swarm Optimizer ###
 class Swarm(Optimizer):
 
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, itermax=10, optimizationDirection=None, 
-                          nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6):
-        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, itermax=itermax, optimizationDirection=optimizationDirection, 
-                          nichingDistanceY=nichingDistanceY, nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins)
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, nparallel=1,
+                 nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6, minimumSwarmSize=10):
+        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, nichingDistanceY=nichingDistanceY, 
+                         nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins, nparallel=nparallel)
 
         ### Initialize swarm ###
         self.particles = [Particle(self.nparas, pid, vinitScale=0.5) for pid in range(nparticles)]
         self.Xbest, self.Ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
+        self.minimumSwarmSize = minimumSwarmSize
+        self.particleReductionRate = 0.99
 
     ### swarm size ###
     @property
@@ -240,88 +399,85 @@ class Swarm(Optimizer):
         return len(self.particles)
     
 
-    ### Initialize ###
-    def initialize(self):
-        ### Evaluate the particle's initial position ###
-        Xinit = np.asarray([Optimizer._dimensionalize(particle.x, self.xlb, self.xub) for particle in self.particles])
-        Yaug, _, _, _ = self.evaluate(Xinit)
-
-        ### Update the particle targets ###
-        for i, particle in enumerate(self.particles):
-            particle.y = self.targetdirectionAug*Optimizer._nondimensionalize(Yaug[i, :], self.yauglb, self.yaugub)
-            particle.ypbest = particle.y.copy()
-
-        ### Set global leaders ###
-        self._updateLeadersWithoutExternalRepo(Xinit, Yaug)
-
-
     ### Iterate ###
-    def iterate(self, visualize=False):
-        ### For cinematic mode ###
-        if visualize:
-            Xcine = np.zeros((self.itermax, self.swarmSize,self.nparas))
-            Ycine = np.zeros((self.itermax, self.swarmSize,self.ntrgts))
+    def iterate(self, itermax):
 
         ### Start iterating ###
-        for n in range(self.itermax):
-            print(" Episode : {}".format(n))
-            ### Update particle positions ###
-            [particle.update() for particle in self.particles]
+        for n in range(itermax):
+            self.currentIteration += 1
+            print(" Episode : {}".format(self.currentIteration))
+
+            ### Remove particles ###
+            SwarmSizeTarget = int(self.particleReductionRate*self.swarmSize) if self.swarmSize > self.minimumSwarmSize else self.minimumSwarmSize
+            while self.swarmSize > SwarmSizeTarget:
+                self.particles.pop()
 
             ### Evaluate the new particle's position ###
             X = np.asarray([Optimizer._dimensionalize(particle.x, self.xlb, self.xub) for particle in self.particles])
-            Yaug, _, _, _ = self.evaluate(X)
+
+            ### Evaluate it ###
+            Y, C, P = self.evaluate(X)
 
             ### Update particle targets ###
             for i, particle in enumerate(self.particles):
-                particle.y = self.targetdirectionAug*Optimizer._nondimensionalize(Yaug[i, :], self.yauglb, self.yaugub)
+                particle.y = Optimizer._nondimensionalize(Y[i, :], self.ylb, self.yub)
+                particle.p = P[i, :]
 
             ### Determine new pbest ###
             [particle.updatePersonalBest() for particle in self.particles]
 
             ### Determine new gbest ###
-            self._updateLeadersWithoutExternalRepo(X, Yaug)
+            Xpareto, Ypareto, Ppareto, pvals = self.findParetoMembers(X, Y, P)
 
-            ### Use eps dominace to reduce pareto members ###
-            #Ydim = Optimizer._nondimensionalize(self.Ybest[:,:], self.ylb, self.yub)
-            #Ydim = 0.5*(1-self.targetdirection) + self.targetdirection*Ydim
-            #plt.plot(Ydim[:,0], Ydim[:,1], 'bo')
+            for i, particle in enumerate(self.particles):
+                index = np.random.choice(np.arange(Xpareto.shape[0]), p=pvals)
+                particle.ygbest = Optimizer._nondimensionalize(Ypareto[index, :], self.ylb, self.yub)
+                particle.xgbest = Optimizer._nondimensionalize(Xpareto[index, :], self.xlb, self.xub)
+                particle.pgbest = Ppareto[index, :]
 
+            ### Apply eps dominance ###
             self.epsDominance()
 
-            #bins = np.linspace(0,1,self.epsDominanceBins)
-            #for b in bins:
-            #    plt.axhline(y=b,color='k')
-            #    plt.axvline(x=b,color='k')
+            ### Update particles ###
+            [particle.update() for particle in self.particles]
 
-            #Ydim = Optimizer._nondimensionalize(self.Ybest[:,:], self.ylb, self.yub)
-            #Ydim = 0.5*(1-self.targetdirection) + self.targetdirection*Ydim
-            #plt.plot(Ydim[:,0], Ydim[:,1], 'ro')
-            # plt.show()
-
-            ### Store to DB ###
-            self.store(X, Yaug[:,:-1])
+            ### Store ###
+            self.store(X, Y, C, P)
+            self._storeSwarm()
 
 
-            ### Only for cinematic mode ###
-            if visualize:
-                Xcine[n,:,:] = X
-                Ycine[n,:,:] = Yaug[:,:-1]
-        ### Only for cinematic mode ###
-        if visualize:
-            return Xcine, Ycine
-
-    ### Update leader particle without external archive ###
-    def _updateLeadersWithoutExternalRepo(self, X, Yaug):
+    ### Restart ###
+    def restart(self, resetParticles=False ,filename="swarm.pkl"):
+        self.Xbest, self.Ybest, self.currentIteration = self.postprocessReturnBest()
         
-        Xpareto, Ypareto, pvals = self.findParetoMembers(X, Yaug)
+        with open(filename,'rb') as f1:
+            self.particles = pickle.load(f1)
 
-        ### Assign each particle a new leader ###
-        for i, particle in enumerate(self.particles):
-            index = np.random.choice(np.arange(Xpareto.shape[0]), p=pvals)
-            particle.ygbest = self.targetdirectionAug * Optimizer._nondimensionalize(Ypareto[index, :], self.yauglb, self.yaugub)
-            particle.xgbest = Optimizer._nondimensionalize(Xpareto[index, :], self.xlb, self.xub)
+        if resetParticles:
+            [particle.reset() for particle in self.particles]
 
-        
+    ### Store the swarm ###
+    def _storeSwarm(self, filename="swarm.pkl"):
+        with open(filename,'wb') as f1:
+            pickle.dump(self.particles,f1)
 
 
+    ### Array for animation ###
+    def postprocessAnimate(self):
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], 
+                                                  distinct=True)]
+
+        Xcine, Ycine = [], []
+
+        for n, it in enumerate(iters):
+
+            X = np.asarray([[d[k] for k in self.paralabels] for d in Database.find(Optimizer.TABLENAME, 
+                                                                               variables=self.paralabels, 
+                                                                               query={"iter":["=",it]})])
+            Y = np.asarray([[d[k] for k in self.trgtlabels] for d in Database.find(Optimizer.TABLENAME, 
+                                                                               variables=self.trgtlabels,
+                                                                               query={"iter":["=",it]})])
+            Xcine.append(X)
+            Ycine.append(Y)
+
+        return np.asarray(Xcine), np.asarray(Ycine)
