@@ -33,7 +33,7 @@ class Particle(object):
 
         ### Reset Counter ###
         self.resetCtr = 0
-        self.resetLimit = 6
+        self.resetLimit = 12
 
         ### Mutation rate ###
         self.mutateRate = mutateRate
@@ -52,6 +52,7 @@ class Particle(object):
             self.ypbest = self.y
             self.xpbest = self.x
             self.ppbest = self.p
+            self.resetCtr = 0
             return
         ### penalty violation ###
         if np.abs(self.p) < np.abs(self.ppbest):
@@ -70,6 +71,7 @@ class Particle(object):
 
         ### Special scenario (for fixing the swarm after resetting) ###
         if np.abs(self.ppbest) == 0.0 and np.abs(self.p)>0.0:
+            self.resetCtr = 0
             return
 
         ### If non of the above cases match ###

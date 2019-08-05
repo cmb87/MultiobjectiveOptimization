@@ -7,7 +7,7 @@ class GaussianProcess(object):
     def __init__(self, xtrain, ytrain, param=None, noise=0.0):
         self.xtrain = xtrain
         self.ytrain = ytrain
-        self.param = 0.3*np.ones(xtrain.shape[1]) if param is None else np.asarray(param)
+        self.param = 0.1*np.ones(xtrain.shape[1]) if param is None else np.asarray(param)
         self.noiseParam = noise
 
 
@@ -18,13 +18,18 @@ class GaussianProcess(object):
         c = np.zeros((a.shape[0], b.shape[0]))
         np.fill_diagonal(c, noisevar**2)
         ### Kernel fct ###
-        a=a/param
-        b=b/param
+        a=a/np.abs(param)
+        b=b/np.abs(param)
         sqdist = np.sum(a**2,1).reshape(-1,1) + np.sum(b**2,1) - 2*np.dot(a, b.T)
         return np.exp(-.5 * sqdist) + c
 
         #sqdist = np.sum(a**2,1).reshape(-1,1) + np.sum(b**2,1) - 2*np.dot(a, b.T)
         #return np.exp(-.5 * (1/param[0]) * sqdist) + c
+
+    ### Update Training data ###
+    def updateTrainingData(self, xtrainNew, ytrainNew):
+        self.xtrain = np.vstack((self.xtrain, xtrainNew))
+        self.ytrain = np.vstack((self.ytrain, ytrainNew))
 
     ### Predict new values ###
     def predict(self, xtest, param=None):
@@ -54,7 +59,7 @@ class GaussianProcess(object):
     ### cross-validated ###
     def crossvalidated(self, p0=None, kfold=4, **args):
         
-        p0 = self.param if p0 is None else p0
+        p0 = self.param.copy() if p0 is None else np.asarray(p0)
         size = int(self.xtrain.shape[0]/kfold)
 
         self.xtrain0 = self.xtrain.copy()
@@ -87,30 +92,38 @@ class GaussianProcess(object):
 
 
     ### Hyperparameter fitting with GD ###
-    def tuneParameters(self, xtest, p0, max_iters=2000, learn_rate=0.01, delta=0.001, eps=1e-4, plot=False, verbose=False):
-        p = np.asarray(p0).reshape(-1)
-        logPs = []
+    def tuneParameters(self, xtest, p0, max_iters=2000, learn_rate=0.01, delta=0.001, eps=1e-4, plot=False, verbose=False, iterLearnRateReduce=100):
+        p = np.asarray(p0).reshape(-1).copy()
+        logPs, yold = [], -1e+10
+
         for i in range(max_iters):
 
             ### Calc gradient ###
             grady = np.zeros_like(p)
-            for i in range(p.shape[0]):
+            for k in range(p.shape[0]):
                 dx = np.zeros_like(p)
-                dx[i] = delta
+                dx[k] = delta
                 _, _, _, yf = self.predict(xtest, param=p+dx)
                 _, _, _, yb = self.predict(xtest, param=p-dx)
-                grady[i] = (yf-yb)/(2*delta)
+                grady[k] = (yf-yb)/(2*delta)
+
+            if i > iterLearnRateReduce:
+                learn_rate*= 0.99
 
             step = (learn_rate*grady).reshape(-1)
             p += step
+            p = np.abs(p)
 
             ### Get current value ###
             _, _, _, y = self.predict(xtest, param=p)
             logPs.append(y)
-            if verbose:
-                print("new logp: {}, p: {}".format(y, p))
 
-            if np.all(step<eps):
+            ### Verbose ###
+            if verbose:
+                print("Iter: {}, LR: {:.2E}, logP: {:.2E}, stepmax: {:.2E}, params: {}".format(i, learn_rate, y, np.max(np.abs(step)), p))
+
+            ### Stopping conditions ###
+            if np.all(np.abs(step)<eps):
                 if verbose:
                     print("No further improvement observed!")
                 break
@@ -118,11 +131,16 @@ class GaussianProcess(object):
                 if verbose:
                     print("Maximum iteration number reached!")
 
+            if y < yold:
+                learn_rate *= 0.5
+
+            yold = y
         ### Assign optimial parameters to param ###
         self.param = p
 
         ### Plot ###
         if plot:
+            import matplotlib.pyplot as plt
             plt.plot(range(len(logPs)), logPs, lw=3)
             plt.grid(True)
             plt.xlabel("Iterations")
@@ -164,12 +182,12 @@ if __name__ == "__main__":
         plt.show()
 
     if True:
-        np.random.seed(42)
+        np.random.seed(87)
         ### 2D Test problem ###
         def rosenbrock(X):
             return (1-X[:,0])**2 + 100*(X[:,1]-X[:,0]**2)**2
 
-        Xtrain = np.asarray([-2,-1]) + np.random.rand(10, 2)*(np.asarray([2,3])-np.asarray([-2,-1]))
+        Xtrain = np.asarray([-2,-1]) + np.random.rand(18, 2)*(np.asarray([2,3])-np.asarray([-2,-1]))
         Ytrain = rosenbrock(Xtrain).reshape(-1,1)
 
         XG,YG = np.meshgrid(np.linspace(-2,2,20),np.linspace(-1,3,20))
@@ -182,6 +200,11 @@ if __name__ == "__main__":
 
         ### Initialiaze GP ###
         gp = GaussianProcess(Xtrain, Ytrain, noise=0.00)
+
+        XtrainNew = np.asarray([-2,-1]) + np.random.rand(2, 2)*(np.asarray([2,3])-np.asarray([-2,-1]))
+        YtrainNew = rosenbrock(XtrainNew).reshape(-1,1)
+
+        gp.updateTrainingData(XtrainNew, (YtrainNew-zmin)/(zmax-zmin))
         gp.crossvalidated(kfold=2, plot=False, eps=0.0001, verbose=False)
         #gp.tuneParameters(Xtest, p0=[0.3,0.3], plot=True, eps=0.0001, verbose=True)
 

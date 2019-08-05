@@ -16,8 +16,8 @@ class my_decorator(object):
     def __init__(self, target):
         self.target = target
 
-    def __call__(self, x, i, send_end):
-        output = self.target(x)
+    def __call__(self, x, i, send_end, kwargs):
+        output = self.target(x, **kwargs)
         return send_end.send([i,output])
 
 
@@ -29,7 +29,7 @@ class Optimizer(object):
 
     ### Constructor ###
     def __init__(self, fct, xbounds, ybounds, cbounds=[], nichingDistanceY=0.1,
-                  nichingDistanceX=0.1, epsDominanceBins=6, nparallel=1):
+                  nichingDistanceX=0.1, epsDominanceBins=6, nparallel=1, **kwargs):
 
         self.fct = fct
         self.currentIteration = 0
@@ -61,12 +61,15 @@ class Optimizer(object):
 
         self.nparallel=nparallel
  
+        ### Keywordarguments ###
+        self.kwargs = kwargs
+
     ### Evaluate function ###
     def evaluate(self, X):
 
         ### Evaluate toolchain ###
         if self.nparallel == 1:
-            output = [self.fct(X[i,:]) for i in range(X.shape[0])]
+            output = [self.fct(X[i,:], **self.kwargs) for i in range(X.shape[0])]
             Y = np.asarray([x[0] for x in output]).reshape(X.shape[0], self.ntrgts)
             if self.ncstrs>0:
                 C = np.asarray([x[1] for x in output]).reshape(X.shape[0], self.ncstrs)
@@ -84,7 +87,7 @@ class Optimizer(object):
                 ### Run WFF ###
                 recv_end, send_end = Pipe(False)
 
-                p = Process(target=my_decorator(self.fct), args=(x, i, send_end))
+                p = Process(target=my_decorator(self.fct), args=(x, i, send_end, self.kwargs))
                 processes.append(p)
                 pipe_list.append(recv_end)
                 p.start()
@@ -102,7 +105,10 @@ class Optimizer(object):
 
             ### Reshape ###
             Y = np.asarray(Y).reshape(X.shape[0], self.ntrgts)
-            C = np.asarray(C).reshape(X.shape[0], self.ncstrs)
+            if self.ncstrs == 0:
+                C = np.zeros((X.shape[0], self.ncstrs))
+            else:
+                C = np.asarray(C).reshape(X.shape[0], self.ncstrs)
 
         ### Build penalty function ###
         Py = Optimizer.boundaryCheck(Y, self.ylb, self.yub)
@@ -216,7 +222,6 @@ class Optimizer(object):
     @staticmethod
     def _dimensionalize(x, lb, ub):
         return lb + x * (ub - lb)
-
 
     ### Create table ###
     def createTable(self):
@@ -363,14 +368,14 @@ class Optimizer(object):
 
     ### Return best values ###
     def postprocessReturnBest(self):
-        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], 
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLEBEST, variables=["iter"], 
                                                   distinct=True)]
 
-        Xbest = np.asarray([[d[k] for k in self.paralabels] for d in Database.find(Optimizer.TABLENAME,
+        Xbest = np.asarray([[d[k] for k in self.paralabels] for d in Database.find(Optimizer.TABLEBEST,
                                                                                   variables=self.paralabels,
                                                                                   query={"iter":["=",iters[-1]]})])
 
-        Ybest = np.asarray([[d[k] for k in self.trgtlabels] for d in Database.find(Optimizer.TABLENAME,
+        Ybest = np.asarray([[d[k] for k in self.trgtlabels] for d in Database.find(Optimizer.TABLEBEST,
                                                                                   variables=self.trgtlabels,
                                                                                   query={"iter":["=",iters[-1]]})])
 
@@ -383,9 +388,9 @@ class Optimizer(object):
 class Swarm(Optimizer):
 
     def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, nparallel=1,
-                 nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6, minimumSwarmSize=10):
+                 nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6, minimumSwarmSize=10, **kwargs):
         super().__init__(fct, xbounds, ybounds, cbounds=cbounds, nichingDistanceY=nichingDistanceY, 
-                         nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins, nparallel=nparallel)
+                         nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins, nparallel=nparallel, **kwargs)
 
         ### Initialize swarm ###
         self.particles = [Particle(self.nparas, pid, vinitScale=0.5) for pid in range(nparticles)]
@@ -444,7 +449,6 @@ class Swarm(Optimizer):
             ### Store ###
             self.store(X, Y, C, P)
             self._storeSwarm()
-
 
     ### Restart ###
     def restart(self, resetParticles=False ,filename="swarm.pkl"):
