@@ -1,6 +1,5 @@
 import numpy as np
 
-
 ### Pareto Class ###
 class Pareto(object):
 
