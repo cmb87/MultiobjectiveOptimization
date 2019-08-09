@@ -21,7 +21,7 @@ from src.database import Database
 
 if __name__ == "__main__":
 
-    if True:
+    if False:
         itermax = 40
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
@@ -30,15 +30,16 @@ if __name__ == "__main__":
         swarm = Swarm(rosenbrock, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10, nparallel=1)
 
         swarm.initialize()
-        swarm.iterate(50)
+        swarm.iterate(120)
 
         #swarm.restart(resetParticles=True)
         #swarm.iterate(5)
 
         Xcine, Ycine = swarm.postprocessAnimate()
         animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
-        #swarm.postprocess()
-        
+        swarm.postprocess()
+        Xbest, Ybest, lastIteration = swarm.postprocessReturnBest()
+        print(Ybest)
 
 
     if False:
@@ -58,8 +59,8 @@ if __name__ == "__main__":
         swarm.postprocess(resdir='../', store=True, xlabel=["x1", "x2"])
 
 
-    if False:
-        itermax = 40
+    if True:
+        itermax = 10
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
         cbounds = [(0, 1.3)]
@@ -67,13 +68,13 @@ if __name__ == "__main__":
         swarm = Swarm(rosenbrockConstrained, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10, nparallel=1)
 
         swarm.initialize()
-        swarm.iterate(20)
+        swarm.iterate(itermax)
 
         #swarm.restart(resetParticles=True)
         #swarm.iterate(5)
 
         Xcine, Ycine = swarm.postprocessAnimate()
         animateSwarm(Xcine, Ycine, rosenbrockContourConstrained, xbounds=xbounds, store=False)
-        #swarm.postprocess()
+        swarm.postprocess()
         
 

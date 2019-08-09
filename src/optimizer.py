@@ -329,7 +329,7 @@ class Optimizer(object):
 
         ### Bounds ###
         lb = self.xlb.tolist()+self.ylb.tolist()+self.clb.tolist()+[0]
-        ub = self.xub.tolist()+self.yub.tolist()+self.cub.tolist()+[0]
+        ub = self.xub.tolist()+self.yub.tolist()+self.cub.tolist()+[1]
 
         clabel = self.cstrlabels if clabel is None else clabel
         xlabel = self.paralabels if xlabel is None else xlabel
@@ -339,7 +339,7 @@ class Optimizer(object):
         assert len(self.paralabels) == len(xlabel), "C Label must match dimensions!"
         assert len(self.trgtlabels) == len(ylabel), "C Label must match dimensions!"
 
-        ### Plot it ###
+
         for n, var in enumerate(xlabel+ylabel+clabel+["penalty"]):
             fig, ax1 = plt.subplots()
 
@@ -360,6 +360,7 @@ class Optimizer(object):
             ax1.set_xlabel("Iterations")
             ax1.set_ylabel(var)
             ax1.grid(True)
+            ax1.set_ylim(lb[n], ub[n])
             if store:
                 plt.savefig(os.path.join(resdir, "opti_{}.png".format(var)))
                 plt.close()

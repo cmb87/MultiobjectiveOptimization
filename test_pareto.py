@@ -7,10 +7,11 @@ from matplotlib import animation
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 
-from pareto import Pareto
+from src.pareto import Pareto
 
 
-Y = np.random.rand(5000,2)
+
+Y = np.random.rand(10000,2)
 
 ranks = Pareto.computeParetoRanks(Y)
 plt.scatter(Y[:,0],Y[:,1],c=ranks)
