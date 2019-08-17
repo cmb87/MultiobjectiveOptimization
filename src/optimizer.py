@@ -384,6 +384,89 @@ class Optimizer(object):
 
 
 
+### Ant colony optimization ###
+class ACO(Optimizer):
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, nparallel=1, q=0.1, eps=0.1,
+                 nichingDistanceY=0.1, nichingDistanceX=0.1, epsDominanceBins=6, colonySize=10, archiveSize=10, **kwargs):
+        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, nichingDistanceY=nichingDistanceY, 
+                         nichingDistanceX=nichingDistanceX, epsDominanceBins=epsDominanceBins, nparallel=nparallel, **kwargs)
+
+        self.colonySize = colonySize
+        self.archiveSize = archiveSize
+        self.X = Optimizer._dimensionalize(np.random.rand(colonySize, self.nparas), self.xlb, self.xub)
+        self.K = np.zeros((0, self.ntrgts +1 + self.nparas))
+        self.q = q
+        self.eps = eps
+
+    ### Iterate ###
+    def iterate(self, itermax):
+
+        ### Start iterating ###
+        for n in range(itermax):
+            self.currentIteration += 1
+            print(" Episode : {}".format(self.currentIteration))
+
+            ### Evaluate it ###
+            Y, C, P = self.evaluate(self.X)
+
+            ### Add to archive ###
+            self.K = np.vstack((self.K, np.hstack((Y, P, self.X))))
+
+
+            ### Rank Solution ###
+            ranks = Pareto.computeParetoRanks(self.K[:,:self.ntrgts +1])
+            
+            ### Sort according to ranks ###
+            self.K = self.K[np.argsort(ranks)[:self.archiveSize],:]
+            ranks = ranks[np.argsort(ranks)][:self.archiveSize]
+
+            self.Xbest = self.K[:self.archiveSize, self.ntrgts +1:]
+            self.Ybest = self.K[:self.archiveSize, :self.ntrgts]
+
+            ### Calculate weights ###
+            omega = 1/(self.q*self.archiveSize*np.sqrt(2*np.pi))*np.exp((-ranks**2+2*ranks-1.0)/(2*self.q**2*self.archiveSize**2))
+            p = omega/np.sum(omega)
+
+            ### Store ###
+            self.store(self.X, Y, C, P)
+
+
+            ### Build new solution ###
+            self.X = np.zeros((self.colonySize,self.nparas))
+
+            for l in range(self.colonySize):
+                for i in range(self.nparas):
+                    j = np.random.choice(np.arange(self.archiveSize), p=p)
+                    Sji = self.Xbest[j,:][i]
+                    sigma = self.eps*np.sum(np.abs(self.Xbest[j,i]-self.Xbest[:,i]))
+
+                    ### Sample from normal distribution ###
+                    self.X[l,i] = Sji + sigma*np.random.normal()
+
+
+    ### Visualize Colony ###
+    def postprocessAnimate(self):
+        iters = [x["iter"] for x in Database.find(Optimizer.TABLENAME, variables=["iter"], 
+                                                  distinct=True)]
+        Xcine, Ycine = [], []
+
+        for n, it in enumerate(iters):
+
+            X = np.asarray([[d[k] for k in self.paralabels] for d in Database.find(Optimizer.TABLENAME, 
+                                                                               variables=self.paralabels, 
+                                                                               query={"iter":["=",it]})])
+            Y = np.asarray([[d[k] for k in self.trgtlabels] for d in Database.find(Optimizer.TABLENAME, 
+                                                                               variables=self.trgtlabels,
+                                                                               query={"iter":["=",it]})])
+            Xcine.append(X)
+            Ycine.append(Y)
+
+        return np.asarray(Xcine), np.asarray(Ycine)
+
+
+    ### Restart ###
+    def restart(self):
+        pass
 
 ### Particle Swarm Optimizer ###
 class Swarm(Optimizer):

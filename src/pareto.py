@@ -28,12 +28,11 @@ class Pareto(object):
 
     @staticmethod
     def computeParetoOptimalMember(Y, index=None):
-        index = np.arange(0,Y.shape[0]) if index is None else index
+        index = np.arange(0,Y.shape[0]) if index is None else np.asarray(index)
 
         Ypareto, Ydominated = Pareto.cull(Y.tolist(), Pareto.dominates)
-
-        paretoIndex = [index[np.where(Y == ypareto)[0][0]] for i, ypareto in enumerate(Ypareto)]
-        dominatedIndex = [index[np.where(Y == ydominated)[0][0]] for i, ydominated in enumerate(Ydominated)]
+        paretoIndex    = [index[np.all(Y == ypareto, axis=1)][0]    for i, ypareto    in enumerate(Ypareto)]
+        dominatedIndex = [index[np.all(Y == ydominated, axis=1)][0] for i, ydominated in enumerate(Ydominated)]
 
         return paretoIndex, dominatedIndex
 
@@ -44,7 +43,7 @@ class Pareto(object):
         ranks = np.zeros(Y.shape[0])
         paretoRank = 0
         while len(indexunranked) > 0:
-            paretoIndex, indexunranked = Pareto.computeParetoOptimalMember(Y[indexunranked], index=indexunranked)
+            paretoIndex, indexunranked = Pareto.computeParetoOptimalMember(Y[indexunranked,:], index=indexunranked)
             ranks[paretoIndex] = paretoRank
             paretoRank += 1
         return ranks
