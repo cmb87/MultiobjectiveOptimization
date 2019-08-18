@@ -14,44 +14,20 @@ def coordinatesSplitter(X):
         return
     return x,y
 
-def xchecker(func):
-    def wrapper(X):
-        if X.ndim == 2:
-            x,y = X[:,0],X[:,1]
-        elif X.ndim == 1:
-            x,y = X[0],X[1]
-        else:
-            print("Datatype not understood")
-            return
-        return func(x,y)
-    return wrapper
-
-### ROSENBROCK ###
-@xchecker
-def rosenbrockDecorated(x,y):
-    a,b = 1, 100
-    return (a-x)**2 + b*(y-x**2)**2, None
-
-
-### ROSENBROCK ###
 def rosenbrock(X):
     x,y = coordinatesSplitter(X)
     a,b = 1, 100
-    return (a-x)**2 + b*(y-x**2)**2, None
+    rspns = np.zeros((X.shape[0],2))
+    rspns[:,0]=(a-x)**2 + b*(y-x**2)**2
+    rspns[:,1]=((x-2)**2+(y+2)**2)**0.5
+    return rspns
 
 def rosenbrockContour(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)]):
     x = np.linspace(xbounds[0][0],xbounds[0][1],imax)
     y = np.linspace(xbounds[1][0],xbounds[1][1],jmax)
     xx,yy = np.meshgrid(y,x)
-    zz = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)[0].reshape(imax,jmax)
+    zz = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)[0][:,0].reshape(imax,jmax)
     return [xx,yy,zz], [[0,0]]
-
-
-def rosenbrockConstrained(X):
-    x,y = coordinatesSplitter(X)
-    a,b = 1, 100
-    return (a-x)**2 + b*(y-x**2)**2, ((x-2)**2+(y+2)**2)**0.5
-
 
 def rosenbrockContourConstrained(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)],cradius=1.3):
     x = np.linspace(xbounds[0][0],xbounds[0][1],imax)
@@ -62,16 +38,20 @@ def rosenbrockContourConstrained(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)],cradiu
     phi = np.linspace(0,2*np.pi,30)
     return [xx,yy,zz], [[2+cradius*np.cos(phi),-2+cradius*np.sin(phi)]]
 
-
 def binhAndKorn(X):
     x,y = coordinatesSplitter(X)
-    f1 = 4*x**2 + 4*y**2
-    f2 = (x-5)**2 + (y-5)**2
+    rspns = np.zeros((X.shape[0],4))
 
-    g1 = (x-5)**2 + y**2
-    g2 = (x-8)**2 + (y+3)**2
+    rspns[:,0] = 4*x**2 + 4*y**2
+    rspns[:,1] = (x-5)**2 + (y-5)**2
 
-    return np.asarray([f1, f2]).T,  np.asarray([g1, g2]).T
+    rspns[:,2] = (x-5)**2 + y**2
+    rspns[:,3] = (x-8)**2 + (y+3)**2
+
+    return rspns
+
+
+
 
 
 

@@ -7,10 +7,10 @@ from matplotlib import animation
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 
+from src.toolchain import Toolchain
 from src.pareto import Pareto
 from src.optimizer import Swarm
 from test_functions import rosenbrock
-from test_functions import rosenbrockConstrained
 from test_functions import rosenbrockContour
 from test_functions import rosenbrockContourConstrained
 from test_functions import binhAndKorn
@@ -21,25 +21,30 @@ from src.database import Database
 
 if __name__ == "__main__":
 
-    if False:
+    if True:
+
+        ### Define toolchain ###
+        tc = Toolchain(2, 2, trgtIndex=[0])
+        tc.chain = rosenbrock
+
+        ### Optimizer stuff ###
         itermax = 40
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
         cbounds = []
 
-        swarm = Swarm(rosenbrock, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10, nparallel=1)
+        swarm = Swarm(tc.execute, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10)
 
         swarm.initialize()
-        swarm.iterate(120)
+        swarm.iterate(itermax)
 
-        #swarm.restart(resetParticles=True)
-        #swarm.iterate(5)
+        swarm.restart(resetParticles=False)
+        swarm.iterate(5)
 
-        Xcine, Ycine = swarm.postprocessAnimate()
-        animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
-        swarm.postprocess()
-        Xbest, Ybest, lastIteration = swarm.postprocessReturnBest()
-        print(Ybest)
+        ### Postprocessing ###
+        Xcine, Ycine = tc.postprocessAnimate()
+        animateSwarm(Xcine[:,:2], Ycine[:,:2], rosenbrockContour, xbounds=xbounds, store=False)
+        tc.postprocess()
 
 
     if False:
@@ -49,7 +54,7 @@ if __name__ == "__main__":
         cbounds = [(0, 25),(7.7, 1e+2)]
 
 
-        swarm = Swarm(binhAndKorn, xbounds, ybounds, cbounds, nichingDistanceX=0.1, nichingDistanceY=0.1, epsDominanceBins=8, nparallel=1)
+        swarm = Swarm(binhAndKorn, xbounds, ybounds, cbounds, nichingDistanceX=0.1, nichingDistanceY=0.1, epsDominanceBins=8)
         swarm.initialize()
         swarm.iterate(itermax)
 
@@ -59,13 +64,13 @@ if __name__ == "__main__":
         swarm.postprocess(resdir='../', store=True, xlabel=["x1", "x2"])
 
 
-    if True:
+    if False:
         itermax = 10
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
         cbounds = [(0, 1.3)]
 
-        swarm = Swarm(rosenbrockConstrained, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10, nparallel=1)
+        swarm = Swarm(rosenbrockConstrained, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10)
 
         swarm.initialize()
         swarm.iterate(itermax)

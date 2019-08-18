@@ -21,21 +21,21 @@ from src.database import Database
 
 if __name__ == "__main__":
 
-    if False:
-        itermax = 40
+    if True:
+        itermax = 20
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
         cbounds = []
 
-        aco = ACO(rosenbrock, xbounds, ybounds, cbounds, colonySize=10)
+        aco = ACO(rosenbrock, xbounds, ybounds, cbounds, colonySize=10, q=0.5, eps=0.1)
 
         aco.initialize()
         aco.iterate(20)
 
-        #aco.restart()
-
-        Xcine, Ycine = aco.postprocessAnimate()
-        animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
+        aco.restart()
+        aco.iterate(10)
+        #Xcine, Ycine = aco.postprocessAnimate()
+        #animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
 
     if False:
         itermax = 100
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         animateSwarm2(Xcine, Ycine, xbounds=xbounds, ybounds=ybounds)
 
 
-    if True:
+    if False:
         itermax = 50
         xbounds = [(-4,4),(-4,4)]
         ybounds = [(0,13500)]
