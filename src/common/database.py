@@ -4,13 +4,13 @@ import os
 import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
-from src.logger import getLogger
+from src.common.logger import getLogger
 
 logger = getLogger(__name__)
 
 class Database(object):
 
-    PATH2DB = "myDatabase.db"
+    PATH2DB = "opti.db"
 
     @staticmethod
     def _checkIfTableExists(tablename):
@@ -237,7 +237,6 @@ class Database(object):
                     cur.execute("SELECT {} {} FROM {} WHERE {}".format(distinct, ', '.join(variables), tablename, ' AND '.join(keys)), vals)
                 else:
                     cur.execute("SELECT {} {} FROM {}".format(distinct, ', '.join(variables), tablename))
-
                 if one:
                     return dict(cur.fetchone())
                 else:

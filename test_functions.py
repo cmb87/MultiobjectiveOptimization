@@ -17,6 +17,7 @@ def coordinatesSplitter(X):
 def rosenbrock(X):
     x,y = coordinatesSplitter(X)
     a,b = 1, 100
+
     rspns = np.zeros((X.shape[0],2))
     rspns[:,0]=(a-x)**2 + b*(y-x**2)**2
     rspns[:,1]=((x-2)**2+(y+2)**2)**0.5
@@ -26,17 +27,19 @@ def rosenbrockContour(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)]):
     x = np.linspace(xbounds[0][0],xbounds[0][1],imax)
     y = np.linspace(xbounds[1][0],xbounds[1][1],jmax)
     xx,yy = np.meshgrid(y,x)
-    zz = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)[0][:,0].reshape(imax,jmax)
-    return [xx,yy,zz], [[0,0]]
+    rspns = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)
+    
+     #[:,0].reshape(imax,jmax)
+    return [xx,yy,rspns[:,0].reshape(imax,jmax)], [[0,0]]
 
 def rosenbrockContourConstrained(imax=30,jmax=30, xbounds=[(-2,2),(-2,2)],cradius=1.3):
     x = np.linspace(xbounds[0][0],xbounds[0][1],imax)
     y = np.linspace(xbounds[1][0],xbounds[1][1],jmax)
     xx,yy = np.meshgrid(y,x)
-    zz = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)[0].reshape(imax,jmax)
-
+    rspns = rosenbrock(np.vstack((xx.reshape(-1), yy.reshape(-1))).T)
+    
     phi = np.linspace(0,2*np.pi,30)
-    return [xx,yy,zz], [[2+cradius*np.cos(phi),-2+cradius*np.sin(phi)]]
+    return [xx,yy,rspns[:,0].reshape(imax,jmax)], [[2+cradius*np.cos(phi),-2+cradius*np.sin(phi)]]
 
 def binhAndKorn(X):
     x,y = coordinatesSplitter(X)

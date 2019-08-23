@@ -11,7 +11,7 @@ from src.pareto import Pareto
 
 
 
-Y = np.random.rand(10000,2)
+Y = np.random.rand(100,2)
 
 ranks = Pareto.computeParetoRanks(Y)
 plt.scatter(Y[:,0],Y[:,1],c=ranks)
