@@ -31,8 +31,8 @@ class Pareto(object):
         index = np.arange(0,Y.shape[0]) if index is None else np.asarray(index)
 
         Ypareto, Ydominated = Pareto.cull(Y.tolist(), Pareto.dominates)
-        paretoIndex    = [index[np.all(Y == ypareto, axis=1)][0]    for i, ypareto    in enumerate(Ypareto)]
-        dominatedIndex = [index[np.all(Y == ydominated, axis=1)][0] for i, ydominated in enumerate(Ydominated)]
+        paretoIndex = [index[np.all(Y == ypareto, axis=1)][0]    for i, ypareto    in enumerate(Ypareto)]
+        dominatedIndex = [i for i in index if not i in paretoIndex]
 
         return paretoIndex, dominatedIndex
 
@@ -40,11 +40,12 @@ class Pareto(object):
     @staticmethod
     def computeParetoRanks(Y):
         indexunranked = np.arange(0,Y.shape[0])
-        ranks = np.zeros(Y.shape[0])
+        ranks = 99*np.ones(Y.shape[0])
         paretoRank = 0
         while len(indexunranked) > 0:
             paretoIndex, indexunranked = Pareto.computeParetoOptimalMember(Y[indexunranked,:], index=indexunranked)
             ranks[paretoIndex] = paretoRank
             paretoRank += 1
+
         return ranks
 

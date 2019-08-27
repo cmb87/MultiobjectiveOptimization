@@ -5,6 +5,7 @@ import importlib
 import inspect 
 import time
 import json
+import re
 
 from multiprocessing import Process
 from multiprocessing import Pipe 
@@ -131,7 +132,11 @@ class Graph:
                 noutputs = len(node['properties']['outputs'])
                 class_name  = node['process']['name']
                 process_name = node['properties']['title']
-                value = node['process']['value']
+                try:
+                    value = node['process']['value']
+                except:
+                    value = 0
+
                 self.modules.append(module_path) 
 
                 ### Import class from module ###            
@@ -141,8 +146,8 @@ class Graph:
 
         ### Set in and output ###
         for cid, con in flowchart['links'].items():
-            snid, snid_con = str(con['fromOperator']), int(con['fromConnector'])
-            rnid, rnid_con = str(con['toOperator']), int(con['toSubConnector'])
+            snid, snid_con = str(con['fromOperator']), int(re.findall('\d+', con['fromConnector'] )[0])
+            rnid, rnid_con = str(con['toOperator']),   int(re.findall('\d+', con['toConnector'] )[0])
             self.addConnectionToGraph(snid, rnid, snid_con, rnid_con)
 
 
@@ -180,10 +185,10 @@ class Graph:
             for i, nodeout in enumerate(node.input_nodes):
                 flowchart['links'][str(linkctr)] = {}
                 flowchart['links'][str(linkctr)]['fromOperator']      =  nodeout.nid
-                flowchart['links'][str(linkctr)]['fromConnector']     =  node.input_cons[i] 
+                flowchart['links'][str(linkctr)]['fromConnector']     =  'Output{}'.format(node.input_cons[i])
                 flowchart['links'][str(linkctr)]['fromSubConnector']  =  '0'                      
                 flowchart['links'][str(linkctr)]['toOperator']        =  nid
-                flowchart['links'][str(linkctr)]['toConnector']       =  nodeout.output_cons[i]
+                flowchart['links'][str(linkctr)]['toConnector']       =  'Input{}'.format(nodeout.output_cons[i])
                 flowchart['links'][str(linkctr)]['toSubConnector']    =  '0'
                 linkctr+=1
         
@@ -269,10 +274,6 @@ class OptimizationGraph(Graph):
         ### Iterate over output nodes ###
         for node in nodes_postorder:
             if not node.evaluated:
-                ### Sanity check ###
-                if not node.sanity_check():
-                    nodes_postorder[-1].output = None
-                    break
 
                 ### Check if node is a Placeholder ###
                 if isinstance(node, Placeholder):
