@@ -290,7 +290,7 @@ class OptimizationGraph(Graph):
                 node.evaluated = True
 
         ### Reshape to numpy array ###
-        R = np.asarray(nodes_postorder[-1].output[0]).reshape(X.shape[0], -1)
+        R = np.asarray(nodes_postorder[-1].output).reshape(X.shape[0], -1)
 
         ### Store current results in DB ###
         self.store(X, R)

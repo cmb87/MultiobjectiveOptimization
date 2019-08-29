@@ -47,7 +47,7 @@ if __name__ == "__main__":
         #tc.postprocess()
 
 
-    if True:
+    if False:
 
         ### Define toolchain ###
         graph = OptimizationGraph(xdim=2, rdim=4, tindex=[0,1], cindex=[2,3], xlabels=["x", "y"])
@@ -66,10 +66,10 @@ if __name__ == "__main__":
 
         Xcine, Ycine = graph.postprocessAnimate()
         animateSwarm2(Xcine, Ycine, xbounds=xbounds, ybounds=ybounds)
-        graph.postprocess()
+        #graph.postprocess()
 
 
-    if False:
+    if True:
         ### Define toolchain ###
         graph = OptimizationGraph(xdim=2, rdim=2, tindex=[0], cindex=[1], xlabels=["x", "y"], rlabels=["z", "c"])
         graph.singleProcessChain(rosenbrock)

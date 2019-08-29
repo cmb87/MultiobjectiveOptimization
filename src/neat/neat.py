@@ -12,14 +12,13 @@ from src.optimizer.pareto import Pareto
 
 class NEAT:
     ### Constructor ###
-    def __init__(self, xbounds, ybounds, nfitness, npop=100, maxtimelevel=1):
+    def __init__(self, xbounds, ybounds, npop=100, maxtimelevel=1):
         self.currentIteration = 0
         self.xdim = len(xbounds)
         self.ydim = len(ybounds)
-        self.nfitness = nfitness
-        self.species = [Specie.initializeRandomly(ninputs=len(xbounds), noutputs=len(ybounds), maxtimelevel=maxtimelevel, paddnode=0.4) for _ in range(npop)]
         self.species_best = []
-        self.best_fitness = np.zeros((0, self.nfitness))
+        self.ybest = np.zeros((0, 1))
+        self.ybest_adjusted = np.zeros((0, 1))
         self.npop = npop
 
     
@@ -34,62 +33,67 @@ class NEAT:
     ### Run different species for different generations ###
     def iterate(self, generationMax, sigmat=0.1):
 
+        species = [Specie.initializeRandomly(ninputs=self.xdim, noutputs=self.ydim, maxtimelevel=1) for _ in range(self.npop)]
+
         for generation in range(generationMax):
+
             ### Run species ###
             print("##### Running Generation {} #####".format(generation))
-            p = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-            fitness = p.map(self.run, [specie for specie in self.species])
-            fitness = np.asarray(fitness).reshape(len(self.species), self.nfitness)
+            p = multiprocessing.Pool(processes=3)
+            fitness = p.map(self.run, [specie for specie in species])
+            fitness = np.asarray(fitness).reshape(len(species),1)
+
+            ### Combine generation with best species ###
+            species = species + self.species_best
+            fitness = np.vstack((fitness, self.ybest))
 
             ### Calculate compability distance ###
-            share = np.zeros((len(self.species), len(self.species)))
-            for i, specie1 in enumerate(self.species):
-                for j, specie2 in enumerate(self.species):
+            share = np.zeros((len(species), len(species)))
+            for i, specie1 in enumerate(species):
+                for j, specie2 in enumerate(species):
                     if np.all(fitness[i,:]<fitness[j,:]):
-                        share[i,j] = 1 if Specie.compabilityMeasure(specie1, specie2) <= sigmat else 0
+                        sigma = Specie.compabilityMeasure(specie1, specie2)
                     else:
-                        share[i,j] = 1 if Specie.compabilityMeasure(specie2, specie1) <= sigmat else 0
+                        sigma = Specie.compabilityMeasure(specie1, specie2)
+
+                    share[i,j] = max([(1-sigma/sigmat),0])
 
             fitness_adjusted = fitness/share.sum(axis=1).reshape(-1,1)
+
+            ### Compute fitness and pareto ranks ###
+            idxs = np.argsort(fitness_adjusted, axis=0)[:,0]
+
+            ### Sort by fitness ###
+            species = [species[idx] for idx in idxs]
+            fitness = fitness[idxs]
+            fitness_adjusted = fitness_adjusted[idxs] 
+            
             ### Summary ####
-            for n, specie in enumerate(self.species):
+            for n, specie in enumerate(species):
+                specie.iter_survived += 1
                 print("\tSpecie ID: {}, Nodes: {} Fitness: {} Fitness_adj: {}".format(specie._id, len(specie.nids), np.around(fitness[n,:],3), np.around(fitness_adjusted[n,:],3)))
             print("Fitness Mean: {:.4f}, Fitness Min: {:.4f}, Fitness Std: {:.4f}".format(fitness.mean(), fitness.min(), fitness.std()))
 
-            ### Combine generation with best species ###
-            self.species = self.species + self.species_best
-            fitness_adjusted = np.vstack((fitness_adjusted, self.best_fitness))
-
-            ### Compute fitness and pareto ranks ###
-            ranks = np.argsort(fitness_adjusted, axis=0)[:,0]
-
-            ### Sort by fitness ###
-            self.species = [self.species[index] for index in ranks]
-            fitness_adjusted = fitness_adjusted[ranks] 
 
             ### Update bestspecies ###
-            self.best_fitness = fitness_adjusted[:10,:]
-            self.species_best = [self.species[i] for i in range(10)]
+            self.ybest = fitness[:self.npop,:]
+            self.species_best = [species[i] for i in range(self.npop)]
 
             ### Selection probabilities for crossover ###
-            probs = 1.0/(np.arange(0,len(ranks))+1)
+            probs = 1.0/(fitness_adjusted[:,0])
             probs = probs/np.sum(probs)
 
             ### build next generation ###
             next_species = []
 
-            ### Elitist ###
-            next_species.extend(self.species[0:3])
-            self.species[0].showGraph(store=True, picname="elitist_generation_{}.png".format(generation))
-
             ### Crossover ###
             while len(next_species) < self.npop:
-                mate_candidates = np.random.choice(len(self.species), 2, p=probs)
-                if ranks[mate_candidates[0]] >= ranks[mate_candidates[1]]:
-                    next_species.append(Specie.crossover(self.species[mate_candidates[0]], self.species[mate_candidates[1]], generation=generation))
-                else:
-                    next_species.append(Specie.crossover(self.species[mate_candidates[1]], self.species[mate_candidates[0]], generation=generation))
-
+                mate_candidates = np.random.choice(len(species), 2)
+                if species[mate_candidates[0]].crossover and species[mate_candidates[1]].crossover:
+                    if fitness[mate_candidates[0]] >= fitness[mate_candidates[1]]:
+                        next_species.append(Specie.crossover(species[mate_candidates[0]], species[mate_candidates[1]], generation=generation))
+                    else:
+                        next_species.append(Specie.crossover(species[mate_candidates[1]], species[mate_candidates[0]], generation=generation))
 
             ### Mutations ###
             for n in range(self.npop):
@@ -103,28 +107,28 @@ class NEAT:
                     next_species[n] = Specie.mutate_add_connection(next_species[n], generation=generation)
                 if np.random.rand() < 0.03:
                     next_species[n] = Specie.mutate_remove_connection(next_species[n], generation=generation)
-                if np.random.rand() < 0.3:
+                if np.random.rand() < 0.8:
                     next_species[n] = Specie.mutate_weight(next_species[n], generation=generation)
-                if np.random.rand() < 0.05:
+                if np.random.rand() < 0.2:
                     next_species[n] = Specie.mutate_bias(next_species[n], generation=generation)
 
             ### Update species for next generation ###
-            self.species = next_species.copy()
-
-# ### Simulation environment for neat ###
-# def simulation(specie):
-    
-#     x = np.linspace(0,1,10).reshape(10,1)
-#     y = np.sin(x)
-
-#     yhat = specie.run(x)
-#     rmse = np.mean((y-yhat)**2)
-#     cost = specie.cost()
-
-#     return np.asarray([rmse, cost]).reshape(1,2)
-
+            species = next_species.copy()
 
 ### Simulation environment for neat ###
+def bestfit(specie):
+    
+    x = np.linspace(0,4,20).reshape(-1,1)
+    y = np.sin(x)
+
+    yhat = specie.run((x-0)/4)
+    rmse = np.mean((y-yhat)**2)
+    cost = specie.cost()
+
+    return np.asarray(rmse).reshape(1,1)
+
+
+# ### Simulation environment for neat ###
 env = gym.make("Pendulum-v0")
 def simulation(specie, timesteps=500, render=False):
     ep_reward = 0
@@ -155,7 +159,7 @@ def simulation(specie, timesteps=500, render=False):
 #### TEST #######
 if __name__ == "__main__":
 
-    if True:
+    if False:
         ### Use gym as test environment ###
         
         
@@ -165,22 +169,19 @@ if __name__ == "__main__":
         xbounds =  xdim*[(-10,10)]
 
         ### NEAT ###
-        neat = NEAT(xbounds, ybounds, nfitness=1, npop=40, maxtimelevel=1)
+        neat = NEAT(xbounds, ybounds, npop=40, maxtimelevel=1)
         neat.run = simulation
-        neat.iterate(80)
+        neat.iterate(70)
 
 
     else:
         ### NEAT ###
-        neat = NEAT(xbounds=[(0,1)], ybounds=[(0,1)], nfitness=2, npop=60, maxtimelevel=1)
-        neat.run = simulation
-        neat.iterate(1)
+        neat = NEAT(xbounds=[(0,4)], ybounds=[(-1,1)], npop=60, maxtimelevel=1)
+        neat.run = bestfit
+        neat.iterate(30)
 
-        yhat = neat.species_best[0].run(np.linspace(0,1,10).reshape(10,1))
+        yhat = neat.species_best[0].run(np.linspace(0,4,20).reshape(20,1))
 
-        plt.plot(neat.best_fitness[:,0], neat.best_fitness[:,1], 'o')
-        plt.show()
-
-        plt.plot(np.linspace(0,1,10), np.sin(np.linspace(0,1,10)),'bo-')
-        plt.plot(np.linspace(0,1,10), yhat,'ro-')
+        plt.plot(np.linspace(0,4,20), np.sin(np.linspace(0,4,20)),'bo-')
+        plt.plot(np.linspace(0,4,20), yhat,'ro-')
         plt.show()

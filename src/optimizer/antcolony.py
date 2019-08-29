@@ -13,59 +13,65 @@ class ACO(Optimizer):
 
         self.colonySize = colonySize
         self.archiveSize = archiveSize
-        self.X = Optimizer._dimensionalize(np.random.rand(colonySize, self.nparas), self.xlb, self.xub)
-        self.K = np.zeros((0, self.ntrgts +1 + self.nparas))
+        self.xbest = np.zeros((0, self.xdim))
+        self.ybest = np.zeros((0, self.ydim))
+        self.pbest = np.zeros((0, 1))
         self.q = q
         self.eps = eps
 
     ### Iterate ###
     def iterate(self, itermax):
 
+        x = Optimizer._dimensionalize(np.random.rand(self.colonySize, self.xdim), self.xlb, self.xub )
+        
         ### Start iterating ###
         for n in range(itermax):
             self.currentIteration += 1
             print(" Episode : {}".format(self.currentIteration))
 
             ### Evaluate it ###
-            Y, C, P = self.evaluate(self.X)
+            y, c, p = self.evaluate(x)
 
-            ### Add to archive ###
-            self.K = np.vstack((self.K, np.hstack((Y, P, self.X))))
+            ### Append value to so far best seen designs ###
+            xNorm = Optimizer._nondimensionalize(np.vstack((x, self.xbest)), self.xlb, self.xub )
+            yNorm = Optimizer._nondimensionalize(np.vstack((y, self.ybest)), self.ylb, self.yub )
+            p = np.vstack((p, self.pbest))
 
+            ### Pareto Ranks ###
+            ranks = Pareto.computeParetoRanks(yNorm+p)
+            idxs = np.argsort(ranks)
 
-            ### Rank Solution ###
-            ranks = Pareto.computeParetoRanks(self.K[:,:self.ntrgts +1])
-            
             ### Sort according to ranks ###
-            self.K = self.K[np.argsort(ranks)[:self.archiveSize],:]
-            ranks = ranks[np.argsort(ranks)][:self.archiveSize]
+            xNorm, yNorm, ranks, p = xNorm[idxs, :], yNorm[idxs, :], ranks[idxs], p[idxs]
 
-            self.Xbest = self.K[:self.archiveSize, self.ntrgts +1:]
-            self.Ybest = self.K[:self.archiveSize, :self.ntrgts]
+            self.xbest = Optimizer._dimensionalize(xNorm[:self.archiveSize,:], self.xlb, self.xub )
+            self.ybest = Optimizer._dimensionalize(yNorm[:self.archiveSize,:], self.ylb, self.yub )
+            self.pbest = p[:self.archiveSize,:]
+            ranks = ranks[:self.archiveSize]
 
             ### Calculate weights ###
             omega = 1/(self.q*self.archiveSize*np.sqrt(2*np.pi))*np.exp((-ranks**2+2*ranks-1.0)/(2*self.q**2*self.archiveSize**2))
             p = omega/np.sum(omega)
 
             ### Build new solution ###
-            self.X = np.zeros((self.colonySize,self.nparas))
+            x = np.zeros((self.colonySize, self.xdim))
 
             for l in range(self.colonySize):
-                for i in range(self.nparas):
+                for i in range(self.xdim):
                     j = np.random.choice(np.arange(self.archiveSize), p=p)
-                    Sji = self.Xbest[j,:][i]
-                    sigma = self.eps*np.sum(np.abs(self.Xbest[j,i]-self.Xbest[:,i]))
+                    Sji = self.xbest[j,:][i]
+                    sigma = self.eps*np.sum(np.abs(self.xbest[j,i]-self.xbest[:,i]))
 
                     ### Sample from normal distribution ###
-                    self.X[l,i] = Sji + sigma*np.random.normal()
-                    if self.X[l,i]>self.xub[i]:
-                        self.X[l,i]=self.xub[i]
-                    elif self.X[l,i]<self.xlb[i]:
-                        self.X[l,i]=self.xlb[i]
+                    x[l,i] = Sji + sigma*np.random.normal()
+                    if x[l,i]>self.xub[i]:
+                        x[l,i]=self.xub[i]
+                    elif x[l,i]<self.xlb[i]:
+                        x[l,i]=self.xlb[i]
 
             ### Store ###
-            Optimizer.store([self.currentIteration, self.X, self.K])
+            Optimizer.store([self.currentIteration, self.xbest, self.ybest])
 
     ### Restart algorithm ###
     def restart(self):
-        [self.currentIteration, self.X, self.K] = Optimizer.load()
+        [self.currentIteration, self.xbest, self.ybest] = Optimizer.load()

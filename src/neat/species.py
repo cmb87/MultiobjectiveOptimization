@@ -210,7 +210,8 @@ class Specie:
         structure[nid_mut]["activation"] = np.random.randint(0,len(ACTIVATIONS))
 
         return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                   iter_survived=specie1.iter_survived)
 
 
     ### Mutate bias ###
@@ -225,7 +226,8 @@ class Specie:
             structure[nid_mut]["bias"] += valueabs*np.random.normal()
 
         return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                   iter_survived=specie1.iter_survived)
 
     ### Mutate weight ###
     @classmethod
@@ -243,7 +245,8 @@ class Specie:
                 structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()
 
             return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                       iter_survived=specie1.iter_survived)
         else:
             return specie1
 
@@ -277,7 +280,8 @@ class Specie:
 
         print("Connection added")
         return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                   iter_survived=specie1.iter_survived)
 
     ### Remove node ###
     @classmethod
@@ -299,7 +303,8 @@ class Specie:
 
             print("Connection removed ")
             return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                       iter_survived=specie1.iter_survived)
         else:
             return specie1
 
@@ -353,7 +358,8 @@ class Specie:
 
             print("Node added")
             return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                       iter_survived=specie1.iter_survived)
         else:
             return specie1
 
@@ -394,7 +400,9 @@ class Specie:
             print("Node {} removed".format(nid_remove))
 
             return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id)
+                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
+                       iter_survived=specie1.iter_survived)
+
         else:
             return specie1
 
@@ -443,7 +451,7 @@ class Specie:
     # Calculate compability
     ### =====================================
     @staticmethod
-    def compabilityMeasure(specie1, specie2, c1=0.1, c2=0.2, c3=0.3):
+    def compabilityMeasure(specie1, specie2, c1=0.5, c2=0.5, c3=0.5):
         inos1 = [val for key, val in specie1.innovationNumbers.items()]
         inos2 = [val for key, val in specie1.innovationNumbers.items()]
         ncons1 = specie1.numberOfConnections

@@ -16,15 +16,15 @@ class Optimizer(object):
 
         self.fct = fct
         self.currentIteration = 0
-        self.nparas = len(xbounds)
-        self.ntrgts = len(ybounds)
-        self.ncstrs = len(cbounds)
+        self.xdim = len(xbounds)
+        self.ydim = len(ybounds)
+        self.cdim = len(cbounds)
 
         self.xlb, self.xub = np.asarray([x[0] for x in xbounds]), np.asarray([x[1] for x in xbounds])
         self.ylb, self.yub = np.asarray([x[0] for x in ybounds]), np.asarray([x[1] for x in ybounds])
         self.clb, self.cub = np.asarray([x[0] for x in cbounds]), np.asarray([x[1] for x in cbounds])
 
-        self.Xbest, self.Ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
+        self.xbest, self.ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
 
         ### Sanity checks ###
         assert np.any(self.xlb<self.xub), "X: Lower bound must be smaller than upper bound"
@@ -33,9 +33,9 @@ class Optimizer(object):
             assert np.any(self.clb<self.cub), "C: Lower bound must be smaller than upper bound"
 
         ### Database ###
-        self.paralabels=["para_{}".format(p) for p in range(self.nparas)]
-        self.trgtlabels=["trgt_{}".format(p) for p in range(self.ntrgts)]
-        self.cstrlabels=["cstr_{}".format(p) for p in range(self.ncstrs)]
+        self.paralabels=["para_{}".format(p) for p in range(self.xdim)]
+        self.trgtlabels=["trgt_{}".format(p) for p in range(self.ydim)]
+        self.cstrlabels=["cstr_{}".format(p) for p in range(self.cdim)]
 
         ### Eps dominace ###
         self.epsDominanceBins = epsDominanceBins
@@ -48,8 +48,8 @@ class Optimizer(object):
     def evaluate(self, X):
         ### Evaluate toolchain ###
         output = self.fct(X, **self.kwargs)
-        Y = output[0].reshape(X.shape[0], self.ntrgts)
-        C = output[1].reshape(X.shape[0], self.ncstrs) if self.ncstrs>0 else np.zeros((X.shape[0], self.ncstrs))
+        Y = output[0].reshape(X.shape[0], self.ydim)
+        C = output[1].reshape(X.shape[0], self.cdim) if self.cdim>0 else np.zeros((X.shape[0], self.cdim))
 
 
         ### Build penalty function ###
@@ -79,13 +79,13 @@ class Optimizer(object):
         bins = np.linspace(0,1, self.epsDominanceBins)
         binDistance, index2delete = {}, []
 
-        for n in range(self.Ybest.shape[0]):
-            Ydim = Optimizer._nondimensionalize(self.Ybest[n,:], self.ylb, self.yub)
+        for n in range(self.ybest.shape[0]):
+            Ydim = Optimizer._nondimensionalize(self.ybest[n,:], self.ylb, self.yub)
             
             inds = np.digitize(Ydim, bins)
             
             inds_key = '-'.join(map(str,inds))
-            dist = sum([(Ydim[i]-bins[inds[i]-1])**2 for i in range(self.ntrgts)])
+            dist = sum([(Ydim[i]-bins[inds[i]-1])**2 for i in range(self.ydim)])
 
             if not inds_key in list(binDistance.keys()):
                 binDistance[inds_key] = [dist, n]
@@ -97,8 +97,8 @@ class Optimizer(object):
                     binDistance[inds_key][0] = dist
                     binDistance[inds_key][1] = n
 
-        self.Ybest = np.delete(self.Ybest,index2delete,axis=0)
-        self.Xbest = np.delete(self.Xbest,index2delete,axis=0)
+        self.ybest = np.delete(self.ybest,index2delete,axis=0)
+        self.xbest = np.delete(self.xbest,index2delete,axis=0)
         
 
     @staticmethod
