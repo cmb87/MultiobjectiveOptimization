@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import multiprocessing
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../'))
 
-from src.neat.species import Specie
+from src.neat.genom import Genom
 from src.optimizer.pareto import Pareto
 
 class NEAT:
@@ -16,7 +16,7 @@ class NEAT:
         self.currentIteration = 0
         self.xdim = len(xbounds)
         self.ydim = len(ybounds)
-        self.species_best = []
+        self.genomes_best = []
         self.ybest = np.zeros((0, 1))
         self.ybest_adjusted = np.zeros((0, 1))
         self.npop = npop
@@ -27,146 +27,178 @@ class NEAT:
         self.currentIteration = 0
 
     ### here goes your code ###
-    def run(self, specie):
+    def run(self, genom):
         pass
 
-    ### Run different species for different generations ###
-    def iterate(self, generationMax, sigmat=3.1):
+    ### Run different genomes for different generations ###
+    def iterate(self, generationMax, sigmat=2.5):
 
-        species = [Specie.initializeRandomly(ninputs=self.xdim, noutputs=self.ydim, maxtimelevel=1) for _ in range(self.npop)]
-        elitists_species, elitists_fitness = [], []
+        genomes = [Genom.initializeRandomly(ninputs=self.xdim, noutputs=self.ydim, maxtimelevel=1) for _ in range(self.npop)]
+        species = {0: {"genome_prototype": genomes[0], "genomes": [], "fitness_adjusted": None,
+                       "fitness":[] , "best_fitness": -1e+4, "best_fitness_gen": 0, "noffspring": 0}}
+        specieCtr = 0
 
+        ### Start the evolution ###
         for generation in range(generationMax):
 
-            ### Run species ###
+            ### Run genomes ###
             print("##### Running Generation {} #####".format(generation))
             p = multiprocessing.Pool(processes=3)
-            fitness = p.map(self.run, [specie for specie in species])
-            
-            ### Add elitsts ###
-            #species = species + elitists_species
-            #fitness.extend([[f] for f in elitists_fitness])
+            fitness = p.map(self.run, [genom for genom in genomes])
+            fitness = np.asarray(fitness).reshape(-1)
 
-            fitness = np.asarray(fitness).reshape(-1,1)
 
             ### Calculate compability distance ###
-            if generation == 0:
-                specieGroups = {0: {"species_prototype": species[0], "species": [species[0]],
-                                    "fitness":[fitness[0]], "best_fitness":[fitness[0]]}}
-                specieCtr = 0
-
-            for f,specie in zip(fitness[1:], species[1:]):
-                for nspecies, group in specieGroups.items():
-                    if Specie.compabilityMeasure(specie, group["species_prototype"]) <= sigmat:
-                        group["species"].append(specie)
-                        group["fitness"].append(f)
+            for f,genom in zip(fitness, genomes):
+                matched = False
+                for ngenomes, specie in species.items():
+                    if Genom.compabilityMeasure(genom, specie["genome_prototype"]) <= sigmat:
+                        specie["genomes"].append(genom)
+                        specie["fitness"].append(f)
+                        matched = True
                         break
-                    else:
-                        specieCtr+=1
-                        specieGroups[specieCtr] = {"species_prototype": specie, "species": [specie], "fitness":[f]}
-                        break
+                if not matched:
+                    specieCtr+=1
+                    species[specieCtr] = {"genome_prototype": genom, "genomes": [genom], "fitness_adjusted": None,
+                                          "fitness":[f], "best_fitness": f, "best_fitness_gen": generation, "noffspring": 0}
+        
 
-
-            ### build next generation ###
-            self.species_best = []
-            elitists_species = []
-            survived_species = []
-            fitness = []
-            prob = []
             ### Adjust by group fitness and kill 50% ###
-            for specieCtr, group in specieGroups.items():
-                f = np.asarray(group["fitness"]).reshape(-1)
-                idxs = np.argsort(f)[::-1]
+            for specieID, specie in species.items():
+                ### Check if specie is populated ###
+                genomes = specie["genomes"]
+                ngenomes = len(genomes)
+                if ngenomes == 0:
+                    specie["noffspring"] = 0
+                    continue
 
-                ikill = int(0.5*len(group["fitness"])) if int(0.5*len(group["fitness"])) > 0 else 1
-                group["fitness"] = [f[idxs[i]]/len(group["fitness"]) for i in range(ikill)]
-                group["species"] = [group["species"][i] for i in idxs[:ikill]]
-                group["best_fitness"] = f[idxs[0]]
+                ### Sort by fitness ###
+                f = np.asarray(specie["fitness"]).reshape(-1)
+                idxs = f.argsort()[::-1]
+                ikill = int(0.5*ngenomes) if ngenomes > 1 else 1
 
-                elitists_species.append(group["species"][0])
-                elitists_fitness.append(f[idxs[0]])
+                ### Check if specie has gotten better ###
+                if f[idxs[0]] > specie["best_fitness"]:
+                    ### Specie has gotten better so we reset the best_fitness_gen to current generation ###
+                    specie["best_fitness"], specie["best_fitness_gen"] = f[idxs[0]], generation
 
-                self.species_best.append(group["species"][0])
-                survived_species.extend(group["species"])
-                fitness.extend(group["fitness"])
-                
-                prob.extend(len(group["species"])*[1.0/len(group["fitness"])])
+                elif (generation-specie["best_fitness_gen"]) > 10 and len(species)>1:
+                    ### No improvement since Nextinguish generation ###
+                    for genom in specie["genomes"]:
+                        genom.crossover = False
+
+                    specie["noffspring"] = 0
+                    specie["fitness"], specie["genomes"] = [],[]
+                    specie["best_fitness_gen"] = generation
+                    print("-> Killing species {}".format(specieID))
+                    continue
+
+                ### Sort by fitness ###
+                f = f[idxs]
+                fadj = f/ngenomes
+                genomes = [genomes[idx] for idx in idxs]
+                ### kill half of the population ###
+                specie["fitness"] = f[:ikill].tolist()
+                specie["genomes"] = genomes[:ikill]
+                specie["fitness_adjusted"] = fadj[:ikill].tolist()
+                specie["noffspring"] = np.sum(fadj[:ikill])
+                ### Print summary ###
+                print("-> Specie: {}, Pop: {}, FitMin: {:.3f}/{:.3f}, FitMean: {:.3f}/{:.3f}, FitMax: {:.3f}/{:.3f}".format(specieID, ngenomes, f.min(), fadj.min(), f.mean(), fadj.mean(), f.max(), fadj.max()))
 
 
-                if generation%20 == 0:
-                    print("Print network")
-                    group["species"][0].showGraph(store=True, picname="specie_{}_best_network.png".format(specieCtr))
+            ### Offspring ###
+            noffsprings = np.asarray([specie["noffspring"] for specieID, specie in species.items()]).reshape(-1)
+            noffsprings = noffsprings/noffsprings.sum()
+            next_genomes = []
 
-                    self.run(group["species"][0])
+            for noffspring, (specieID, specie) in zip(noffsprings, species.items()):
 
-                print("Specie {}: Population: {}, Best Fitness: {:.4f}, Adjusted fitness: {}".format(specieCtr, len(group["fitness"]), 
-                                                                                              f[idxs[0]], f[idxs[0]]/len(group["fitness"])))
+                print(specieID, int(noffspring*self.npop))
+                if len(specie["genomes"]) == 0:
+                    continue
 
+                for i in range(int(noffspring*self.npop)):
+                    ### Crossover ###
+                    if np.random.rand() < 0.3 and len(specie["genomes"])>1:
+                        idxs = np.random.choice(len(specie["genomes"]), 2, replace=False)
 
-            ### Crossover ###
-            prob = np.asarray(prob)
-            prob = prob/prob.sum()
+                        if specie["fitness"][idxs[0]] > specie["fitness"][idxs[1]]:
+                            genom1, genom2 = specie["genomes"][idxs[0]], specie["genomes"][idxs[1]]
+                        else:
+                            genom2, genom1 = specie["genomes"][idxs[0]], specie["genomes"][idxs[1]]
 
-            next_species = survived_species.copy()
-            ctr = 0
-
-            while len(next_species) < self.npop:
-                
-                mate_candidates = np.random.choice(len(survived_species), 2, p=prob)
-
-                if survived_species[mate_candidates[0]].crossover and survived_species[mate_candidates[1]].crossover:
-                    if fitness[mate_candidates[0]] >= fitness[mate_candidates[1]]:
-                        next_species.append(Specie.crossover(survived_species[mate_candidates[0]], survived_species[mate_candidates[1]], generation=generation))
+                        next_genomes.append(Genom.crossover(genom1, genom2, generation=generation))
+                    ### Mutation ###
                     else:
-                        next_species.append(Specie.crossover(survived_species[mate_candidates[1]], survived_species[mate_candidates[0]], generation=generation))
+                        idx = np.random.randint(0,len(specie["genomes"]))
+                        genom = specie["genomes"][idx]
 
-            for n in range(self.npop):
-                if np.random.rand() < 0.02:
-                    next_species[n] = Specie.mutate_activation(species[ctr], generation=generation)
-                if np.random.rand() < 0.03:
-                    next_species[n] = Specie.mutate_add_node(species[ctr], generation=generation)
-                if np.random.rand() < 0.03:
-                    next_species[n] = Specie.mutate_remove_node(species[ctr], generation=generation)
-                if np.random.rand() < 0.05:
-                    next_species[n] = Specie.mutate_add_connection(species[ctr], generation=generation)
-                if np.random.rand() < 0.03:
-                    next_species[n] = Specie.mutate_remove_connection(species[ctr], generation=generation)
-                if np.random.rand() < 0.8:
-                    next_species[n] = (Specie.mutate_weight(species[ctr], generation=generation))
-                if np.random.rand() < 0.8:
-                    next_species[n] = Specie.mutate_bias(species[ctr], generation=generation)
+                        if np.random.rand() < 0.02:
+                            genom = Genom.mutate_activation(genom, generation=generation)
+                        if np.random.rand() < 0.03:
+                            genom = Genom.mutate_add_node(genom, generation=generation)
+                        if np.random.rand() < 0.03:
+                            genom = Genom.mutate_remove_node(genom, generation=generation)
+                        if np.random.rand() < 0.05:
+                            genom = Genom.mutate_add_connection(genom, generation=generation)
+                        if np.random.rand() < 0.03:
+                            genom = Genom.mutate_remove_connection(genom, generation=generation)
+                        if np.random.rand() < 0.8:
+                            genom = Genom.mutate_weight(genom, generation=generation)
+                        if np.random.rand() < 0.8:
+                            genom = Genom.mutate_bias(genom, generation=generation)
 
- 
+                        next_genomes.append(genom)
 
-            ### Update species for next generation ###
-            species = next_species.copy()
+            ### Fill up the remaining ones with ###
+            while len(next_genomes) < self.npop:
+                species1 = species[np.random.randint(0,len(species))]
+                species2 = species[np.random.randint(0,len(species))]
+
+                if len(species1["genomes"]) == 0 or len(species2["genomes"]) == 0:
+                    continue
+
+                idx1 = np.random.randint(0,len(species1["genomes"])) if len(species1["genomes"])>1 else 0
+                idx2 = np.random.randint(0,len(species2["genomes"])) if len(species2["genomes"])>1 else 0
+
+                if species1["fitness"][idx1] > species2["fitness"][idx2]:
+                    next_genomes.append(Genom.crossover(species1["genomes"][idx1], species2["genomes"][idx2], generation=generation))
+                else:
+                    next_genomes.append(Genom.crossover(species2["genomes"][idx2], species1["genomes"][idx1], generation=generation))
+
+            ### Reset species population ###
+            for specieID, specie in species.items():
+                specie["genomes"], specie["fitness"] = [], []
+
+            ### Update genomes for next generation ###
+            genomes = next_genomes.copy()
 
 ### Simulation environment for neat ###
-def bestfit(specie):
+def bestfit(genom):
     
     x = np.linspace(0,4,20).reshape(-1,1)
     y = np.sin(x)
 
-    yhat = specie.run((x-0)/4)
+    yhat = -1 + 2*genom.run(-1+2*(x-0)/4)
     rmse = np.mean((y-yhat)**2)
-    cost = specie.cost()
+    cost = genom.cost()
 
-    return -np.asarray(rmse)
+    return 10 -np.asarray(rmse)
 
 
 # ### Simulation environment for neat ###
 env = gym.make("Pendulum-v0")
-def simulation(specie, timesteps=1000, render=False):
+def simulation(genom, timesteps=1000, render=False):
     ep_reward = 0
-    #print("Running specie {}".format(specie))
+    #print("Running genom {}".format(genom))
     s = env.reset()
     for t in range(timesteps):
 
-        ### Run single species ###
+        ### Run single genomes ###
         s_norm = np.asarray(s).reshape(1,-1) / 10
-        a_norm = specie.run(s_norm)
+        a_norm = genom.run(s_norm)
         a = 4*a_norm
-        cost = specie.cost()
+        cost = genom.cost()
 
         ### Run simulation environment ###
         s2, r, done, info = env.step(a)
@@ -178,7 +210,7 @@ def simulation(specie, timesteps=1000, render=False):
         if render:
             env.render()
 
-    return ep_reward/timesteps
+    return 10+ep_reward/timesteps
 
 
 
@@ -204,10 +236,10 @@ if __name__ == "__main__":
         ### NEAT ###
         neat = NEAT(xbounds=[(0,4)], ybounds=[(-1,1)], npop=60, maxtimelevel=1)
         neat.run = bestfit
-        neat.iterate(30)
+        neat.iterate(100)
 
-        for specie in neat.species_best:
-            yhat = specie.run(np.linspace(0,4,20).reshape(20,1))
+        for genom in neat.genomes_best:
+            yhat = genom.run(np.linspace(0,4,20).reshape(20,1))
 
             plt.plot(np.linspace(0,4,20), np.sin(np.linspace(0,4,20)),'bo-')
             plt.plot(np.linspace(0,4,20), yhat,'ro-')
