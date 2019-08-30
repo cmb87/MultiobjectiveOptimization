@@ -21,7 +21,7 @@ from test_functions import animateSwarm, animateSwarm2
 
 if __name__ == "__main__":
 
-    if True:
+    if False:
         d = 32
         ### Define toolchain ###
         graph = OptimizationGraph(xdim=d, rdim=1, tindex=[0], cindex=[])

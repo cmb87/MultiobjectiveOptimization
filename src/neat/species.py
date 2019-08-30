@@ -216,12 +216,12 @@ class Specie:
 
     ### Mutate bias ###
     @classmethod
-    def mutate_bias(cls, specie1, valueabs=1.0, pbigChange=0.5, generation=None):
+    def mutate_bias(cls, specie1, valueabs=2.0, pbigChange=0.5, generation=None):
         nids = specie1.nids.copy()
         structure = copy.deepcopy(specie1.structure)
         nid_mut = nids[np.random.randint(len(specie1.nids_input), len(nids))]
         if np.random.rand() > pbigChange:
-            structure[nid_mut]["bias"] = valueabs*np.random.normal()
+            structure[nid_mut]["bias"] = -valueabs+2*valueabs*np.random.rand()
         else:
             structure[nid_mut]["bias"] += valueabs*np.random.normal()
 
@@ -231,7 +231,7 @@ class Specie:
 
     ### Mutate weight ###
     @classmethod
-    def mutate_weight(cls, specie1, valueabs=1.0, pbigChange=0.5, generation=None):
+    def mutate_weight(cls, specie1, valueabs=2.0, pbigChange=0.5, generation=None):
         nids = specie1.nids.copy()
         structure = copy.deepcopy(specie1.structure)
         nid_mut = nids[np.random.randint(len(specie1.nids_input), len(nids))]
@@ -240,7 +240,7 @@ class Specie:
             index = np.random.randint(0, len(structure[nid_mut]["connections"]["snids"]))
 
             if np.random.rand() > pbigChange:
-                structure[nid_mut]["connections"]["weights"][index] = valueabs*np.random.normal()
+                structure[nid_mut]["connections"]["weights"][index] = -valueabs+2*valueabs*np.random.rand()
             else:
                 structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()
 
@@ -252,12 +252,12 @@ class Specie:
 
     ### Add connection ###
     @classmethod
-    def mutate_add_connection(cls, specie1, valueabs=0.5, maxretries=1, generation=None, timelevel=None):
+    def mutate_add_connection(cls, specie1, valueabs=2, maxretries=1, generation=None, timelevel=None):
         nids = specie1.nids.copy()
         structure = copy.deepcopy(specie1.structure)
         timelevel = specie1.maxtimelevel if timelevel is None else timelevel
         level = np.random.randint(0, timelevel)
-        weight = valueabs*np.random.normal()
+        weight = -valueabs+2*valueabs*np.random.rand()
 
         #nid_add = nids[np.random.randint(len(specie1.nids_input), len(nids))]
         nid_add = nids[np.random.randint(len(specie1.nids_input), len(nids))]
@@ -350,11 +350,11 @@ class Specie:
             ### Add connection to new node ###
             structure[nid_new] = {"connections": {}}
             structure[nid_new]["connections"]["innovations"] = [Specie._addInnovation(snid, nid_new, level)]
-            structure[nid_new]["connections"]["weights"] = [np.random.normal()]
+            structure[nid_new]["connections"]["weights"] = [1.0]
             structure[nid_new]["connections"]["snids"] = [snid]
             structure[nid_new]["connections"]["level"] = [level]
             structure[nid_new]["bias"] = 0.0
-            structure[nid_new]["activation"] = np.random.randint(0,len(ACTIVATIONS)) if activation is None else activation
+            structure[nid_new]["activation"] = 1 #np.random.randint(0,len(ACTIVATIONS)) if activation is None else activation
 
             print("Node added")
             return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
@@ -451,13 +451,16 @@ class Specie:
     # Calculate compability
     ### =====================================
     @staticmethod
-    def compabilityMeasure(specie1, specie2, c1=0.5, c2=0.5, c3=0.5):
+    def compabilityMeasure(specie1, specie2, c1=1.0, c2=1.0, c3=0.3):
         inos1 = [val for key, val in specie1.innovationNumbers.items()]
         inos2 = [val for key, val in specie1.innovationNumbers.items()]
         ncons1 = specie1.numberOfConnections
         ncons2 = specie2.numberOfConnections
         nsumw1 = specie1.sumOfWeightsAndBiases
         nsumw2 = specie2.sumOfWeightsAndBiases
+
+        if ncons1 < 1 or ncons1 < 1:
+            return 1
 
         cinos  = list(set(inos1) & set(inos2))
         uinos1 = list(set(inos1).difference(set(cinos)))
@@ -473,7 +476,16 @@ class Specie:
             else:
                 disjoint.append(ino)
 
+        for ino in uinos2:
+            if inos2.index(ino) > max(cinos_index):
+                excess.append(ino)
+            else:
+                disjoint.append(ino)
+
+
         N = len(inos1) if len(inos1) > len(inos2) else len(inos2)
+
+
         return c1*len(excess)/(N+1e-5) + c2*len(disjoint)/(N+1e-5) + c3*abs(nsumw1/(ncons1+1e-5)-nsumw2/(ncons2+1e-5))
 
 
