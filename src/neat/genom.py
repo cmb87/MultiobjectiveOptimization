@@ -9,10 +9,10 @@ INNOVATIONSCTR = 0
 INNOVATIONS = {}
 NIDDICT = {}
 NIDMAX = 0
-SPECIECTR = 0
+GENOMCTR = 0
 
-### Specie class for neat ###
-class Specie:
+### Genom class for neat ###
+class Genom:
 
     ### Constructor ###
     def __init__(self, nids, nids_input, nids_output, structure, maxtimelevel=2,
@@ -45,7 +45,7 @@ class Specie:
         ### Note that the innvation manager is explicitly not added here! ###
         return {"_id": self._id, "nids": self.nids, "structure": self.structure, "maxtimelevel":self.maxtimelevel,
                 "nids_input": self.nids_input, "nids_output": self.nids_output, "generation": self.generation,
-                "parents": self.parents, "crossover": self.crossover, "iter_survived": self.iter_survived, 
+                "parents": self.parents, "crossover": self.crossover, "iter_survived": self.iter_survived,
                 }
 
     ### print detailed structure ###
@@ -54,13 +54,13 @@ class Specie:
 
     ### When printing out ###
     def __repr__(self):
-        return "<Specie ID {}, parents {} ,gen. {}, survived {}>".format(self._id, self.parents, self.generation, self.iter_survived)
+        return "<Genom ID {}, parents {} ,gen. {}, survived {}>".format(self._id, self.parents, self.generation, self.iter_survived)
 
     ####
     @property
     def innovationNumbers(self):
         return {ino:nid for nid in self.nids for ino in self.structure[nid]["connections"]["innovations"]}
-    
+
     @property
     def numberOfConnections(self):
         return sum([len(self.structure[nid]["connections"]["snids"]) for nid in self.nids])
@@ -70,7 +70,7 @@ class Specie:
         return sum([sum(self.structure[nid]["connections"]["weights"]) + self.structure[nid]["bias"] for nid in self.nids])
 
     ### ======================================
-    # Innovation manager stuff 
+    # Innovation manager stuff
     ### ======================================
     ### Add innovation ###
     @staticmethod
@@ -165,7 +165,7 @@ class Specie:
     @classmethod
     def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.0, paddbias=0.5, pmutact=0.5, nrerun=None):
 
-        global NIDMAX, SPECIECTR
+        global NIDMAX, GENOMCTR
         nids_input, nids_output = [x for x in range(0,ninputs)], [x for x in range(ninputs ,ninputs+noutputs)]
         nids = nids_input+nids_output
         nrerun = max([ninputs, noutputs]) if nrerun is None else nrerun
@@ -173,23 +173,23 @@ class Specie:
 
         structure= {}
         for nid in nids:
-            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": []},'activation': 0, 'bias': 0.0} 
+            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": []},'activation': 0, 'bias': 0.0}
 
-        specie = cls(nids, nids_input, nids_output, structure, maxtimelevel=maxtimelevel, 
-                     _id=SPECIECTR, generation=0, parents=['init'])
+        genom = cls(nids, nids_input, nids_output, structure, maxtimelevel=maxtimelevel,
+                     _id=GENOMCTR, generation=0, parents=['init'])
 
         for _ in range(nrerun):
             if np.random.rand() < paddcon:
-                specie = Specie.mutate_add_connection(specie)
+                genom = Genom.mutate_add_connection(genom)
             if np.random.rand() < paddbias:
-                specie = Specie.mutate_bias(specie)
+                genom = Genom.mutate_bias(genom)
             if np.random.rand() < paddnode:
-                specie = Specie.mutate_add_node(specie)
+                genom = Genom.mutate_add_node(genom)
             if np.random.rand() < pmutact:
-                specie = Specie.mutate_activation(specie)
+                genom = Genom.mutate_activation(genom)
 
-        SPECIECTR +=1
-        return specie
+        GENOMCTR +=1
+        return genom
 
     ### get structure cost ###
     def cost(self, c1=1.0, c2=1.0, c3=1.0):
@@ -203,38 +203,38 @@ class Specie:
 
     ### Mutate bias ###
     @classmethod
-    def mutate_activation(cls, specie1, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
-        nid_mut = nids[np.random.randint(len(specie1.nids_input), len(nids))]
+    def mutate_activation(cls, genom1, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
+        nid_mut = nids[np.random.randint(len(genom1.nids_input), len(nids))]
         structure[nid_mut]["activation"] = np.random.randint(0,len(ACTIVATIONS))
 
-        return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                   iter_survived=specie1.iter_survived)
+        return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                   maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                   iter_survived=genom1.iter_survived, crossover=genom1.crossover)
 
 
     ### Mutate bias ###
     @classmethod
-    def mutate_bias(cls, specie1, valueabs=2.0, pbigChange=0.5, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
-        nid_mut = nids[np.random.randint(len(specie1.nids_input), len(nids))]
+    def mutate_bias(cls, genom1, valueabs=1.0, pbigChange=0.3, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
+        nid_mut = nids[np.random.randint(len(genom1.nids_input), len(nids))]
         if np.random.rand() > pbigChange:
             structure[nid_mut]["bias"] = -valueabs+2*valueabs*np.random.rand()
         else:
             structure[nid_mut]["bias"] += valueabs*np.random.normal()
 
-        return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                   iter_survived=specie1.iter_survived)
+        return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                   maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                   iter_survived=genom1.iter_survived, crossover=genom1.crossover)
 
     ### Mutate weight ###
     @classmethod
-    def mutate_weight(cls, specie1, valueabs=2.0, pbigChange=0.5, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
-        nid_mut = nids[np.random.randint(len(specie1.nids_input), len(nids))]
+    def mutate_weight(cls, genom1, valueabs=1.0, pbigChange=0.3, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
+        nid_mut = nids[np.random.randint(len(genom1.nids_input), len(nids))]
 
         if len(structure[nid_mut]["connections"]["snids"]) > 0:
             index = np.random.randint(0, len(structure[nid_mut]["connections"]["snids"]))
@@ -244,55 +244,55 @@ class Specie:
             else:
                 structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()
 
-            return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                       iter_survived=specie1.iter_survived)
+            return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                       maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                       iter_survived=genom1.iter_survived, crossover=genom1.crossover)
         else:
-            return specie1
+            return genom1
 
     ### Add connection ###
     @classmethod
-    def mutate_add_connection(cls, specie1, valueabs=2, maxretries=1, generation=None, timelevel=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
-        timelevel = specie1.maxtimelevel if timelevel is None else timelevel
+    def mutate_add_connection(cls, genom1, valueabs=1, maxretries=1, generation=None, timelevel=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
+        timelevel = genom1.maxtimelevel if timelevel is None else timelevel
         level = np.random.randint(0, timelevel)
-        weight = -valueabs+2*valueabs*np.random.rand()
+        weight = valueabs*np.random.normal()
 
-        #nid_add = nids[np.random.randint(len(specie1.nids_input), len(nids))]
-        nid_add = nids[np.random.randint(len(specie1.nids_input), len(nids))]
+        #nid_add = nids[np.random.randint(len(genom1.nids_input), len(nids))]
+        nid_add = nids[np.random.randint(len(genom1.nids_input), len(nids))]
 
         ### Find a valid SNID ###
         for _ in range(maxretries):
             snid = nids[np.random.randint(0, nids.index(nid_add))] if level == 0 else nids[np.random.randint(0, nids.index(nid_add))]
-            if not snid in structure[nid_add]["connections"]["snids"] and not snid in specie1.nids_output:
+            if not snid in structure[nid_add]["connections"]["snids"] and not snid in genom1.nids_output:
                 break
             elif snid == nid_add and level >0:
                 break
             if _ == maxretries -1:
-                return specie1
+                return genom1
 
         ### Add everything ###
         structure[nid_add]["connections"]["snids"].append(snid)
         structure[nid_add]["connections"]["weights"].append(weight)
         structure[nid_add]["connections"]["level"].append(level)
-        structure[nid_add]["connections"]["innovations"].append(Specie._addInnovation(snid, nid_add, level))
+        structure[nid_add]["connections"]["innovations"].append(Genom._addInnovation(snid, nid_add, level))
 
         print("Connection added")
-        return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                   iter_survived=specie1.iter_survived)
+        return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                   maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                   iter_survived=genom1.iter_survived, crossover=genom1.crossover)
 
     ### Remove node ###
     @classmethod
-    def mutate_remove_connection(cls, specie1, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
+    def mutate_remove_connection(cls, genom1, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
 
-        if len(specie1.nids_input) == len(nids)-len(specie1.nids_output):
-            nid_remove = nids[len(specie1.nids_input)]
+        if len(genom1.nids_input) == len(nids)-len(genom1.nids_output):
+            nid_remove = nids[len(genom1.nids_input)]
         else:
-            nid_remove = nids[np.random.randint(len(specie1.nids_input), len(nids)-len(specie1.nids_output))]
+            nid_remove = nids[np.random.randint(len(genom1.nids_input), len(nids)-len(genom1.nids_output))]
 
         if len(structure[nid_remove]["connections"]["snids"]) > 0:
             index = np.random.randint(0, len(structure[nid_remove]["connections"]["snids"]))
@@ -302,37 +302,37 @@ class Specie:
             structure[nid_remove]["connections"]["level"].pop(index)
 
             print("Connection removed ")
-            return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                       iter_survived=specie1.iter_survived)
+            return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                       maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                       iter_survived=genom1.iter_survived, crossover=genom1.crossover)
         else:
-            return specie1
+            return genom1
 
     ### Add node ###
     @classmethod
-    def mutate_add_node(cls, specie1, activation=1, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
-        
-        if len(specie1.nids_input) == len(nids)-len(specie1.nids_output):
-            rnid_index = len(specie1.nids_input)
+    def mutate_add_node(cls, genom1, activation=1, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
+
+        if len(genom1.nids_input) == len(nids)-len(genom1.nids_output):
+            rnid_index = len(genom1.nids_input)
             rnid = nids[rnid_index]
         else:
-            rnid_index = np.random.randint(len(specie1.nids_input), len(nids)-len(specie1.nids_output))
+            rnid_index = np.random.randint(len(genom1.nids_input), len(nids)-len(genom1.nids_output))
             rnid = nids[rnid_index]
 
         if len(structure[rnid]["connections"]["innovations"]) > 0:
             index = np.random.randint(0, len(structure[rnid]["connections"]["snids"]))
-            snid, _, level = Specie._getFeatures(structure[rnid]["connections"]["innovations"][index]) 
+            snid, _, level = Genom._getFeatures(structure[rnid]["connections"]["innovations"][index])
             weight = structure[rnid]["connections"]["weights"][index]
 
             ### Insert new node ###
-            if max([len(specie1.nids_input), nids.index(snid)+1]) == nids.index(rnid):
-                index_insert = max([len(specie1.nids_input), nids.index(snid)+1])
+            if max([len(genom1.nids_input), nids.index(snid)+1]) == nids.index(rnid):
+                index_insert = max([len(genom1.nids_input), nids.index(snid)+1])
             else:
-                index_insert = np.random.randint(max([len(specie1.nids_input), nids.index(snid)+1]),nids.index(rnid))
+                index_insert = np.random.randint(max([len(genom1.nids_input), nids.index(snid)+1]),nids.index(rnid))
 
-            nid_new = Specie._getNewNID(nid_previous=nids[index_insert], nid_following=nids[index_insert-1])
+            nid_new = Genom._getNewNID(nid_previous=nids[index_insert], nid_following=nids[index_insert-1])
             nids.insert(index_insert, nid_new)
 
             ### Remove existing connection ###
@@ -342,14 +342,14 @@ class Specie:
             structure[rnid]["connections"]["level"].pop(index)
 
             ### Add connection from new node ###
-            structure[rnid]["connections"]["innovations"].append(Specie._addInnovation(nid_new, rnid, level))
+            structure[rnid]["connections"]["innovations"].append(Genom._addInnovation(nid_new, rnid, level))
             structure[rnid]["connections"]["weights"].append(weight)
             structure[rnid]["connections"]["snids"].append(nid_new)
             structure[rnid]["connections"]["level"].append(level)
 
             ### Add connection to new node ###
             structure[nid_new] = {"connections": {}}
-            structure[nid_new]["connections"]["innovations"] = [Specie._addInnovation(snid, nid_new, level)]
+            structure[nid_new]["connections"]["innovations"] = [Genom._addInnovation(snid, nid_new, level)]
             structure[nid_new]["connections"]["weights"] = [1.0]
             structure[nid_new]["connections"]["snids"] = [snid]
             structure[nid_new]["connections"]["level"] = [level]
@@ -357,21 +357,21 @@ class Specie:
             structure[nid_new]["activation"] = 1 #np.random.randint(0,len(ACTIVATIONS)) if activation is None else activation
 
             print("Node added")
-            return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                       iter_survived=specie1.iter_survived)
+            return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                       maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                       iter_survived=genom1.iter_survived, crossover=genom1.crossover)
         else:
-            return specie1
+            return genom1
 
     ### Remove node ###
     @classmethod
-    def mutate_remove_node(cls, specie1, generation=None):
-        nids = specie1.nids.copy()
-        structure = copy.deepcopy(specie1.structure)
+    def mutate_remove_node(cls, genom1, generation=None):
+        nids = genom1.nids.copy()
+        structure = copy.deepcopy(genom1.structure)
 
         ### Check if additional nodes exists ###
-        if not len(nids) == len(specie1.nids_input) + len(specie1.nids_output):
-            nid_remove = nids[np.random.randint(len(specie1.nids_input), len(nids)-len(specie1.nids_output))]
+        if not len(nids) == len(genom1.nids_input) + len(genom1.nids_output):
+            nid_remove = nids[np.random.randint(len(genom1.nids_input), len(nids)-len(genom1.nids_output))]
             snids = structure[nid_remove]["connections"]["snids"]
             level = structure[nid_remove]["connections"]["level"]
             weights = structure[nid_remove]["connections"]["weights"]
@@ -392,43 +392,43 @@ class Specie:
                     ### Adding connections ###
                     for l,snid,weight in zip(level,snids,weights):
                         if not snid in structure[nid]["connections"]["snids"]:
-                            structure[nid]["connections"]["innovations"].append(Specie._addInnovation(snid, nid, l))
+                            structure[nid]["connections"]["innovations"].append(Genom._addInnovation(snid, nid, l))
                             structure[nid]["connections"]["weights"].append(weight)
                             structure[nid]["connections"]["snids"].append(snid)
                             structure[nid]["connections"]["level"].append(l)
 
             print("Node {} removed".format(nid_remove))
 
-            return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                       maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id], _id=specie1._id, 
-                       iter_survived=specie1.iter_survived)
+            return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                       maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id], _id=genom1._id,
+                       iter_survived=genom1.iter_survived, crossover=genom1.crossover)
 
         else:
-            return specie1
+            return genom1
 
-    ### Crossover specie 1 is assumed to be the fitter one ###
+    ### Crossover genom 1 is assumed to be the fitter one ###
     @classmethod
-    def crossover(cls, specie1, specie2, generation=None):
-        global SPECIECTR
-        inos1 = specie1.innovationNumbers
-        inos2 = specie2.innovationNumbers
+    def crossover(cls, genom1, genom2, generation=None):
+        global GENOMCTR
+        inos1 = genom1.innovationNumbers
+        inos2 = genom2.innovationNumbers
 
         cinos  = list(set(inos1.keys()) & set(inos2.keys()))
         uinos1 = list(set(inos1.keys()).difference(set(cinos)))
 
-        nids = specie1.nids.copy()
-        structure = {nid: {'connections':{"snids":[], "weights":[], "level":[], "innovations": []}, 
+        nids = genom1.nids.copy()
+        structure = {nid: {'connections':{"snids":[], "weights":[], "level":[], "innovations": []},
                            'activation': 0, 'bias': 0.0} for nid in nids}
 
         ### inputs ###
-        for nid in specie1.nids_input:
-            structure[nid] = specie1.structure[nid]
+        for nid in genom1.nids_input:
+            structure[nid] = genom1.structure[nid]
 
         ### Common innovations ###
         for cino in cinos:
-            parent = [specie1.structure[inos1[cino]], specie2.structure[inos2[cino]]][np.random.randint(0,2)]
-            
-            snid, rnid, level = Specie._getFeatures(cino)
+            parent = [genom1.structure[inos1[cino]], genom2.structure[inos2[cino]]][np.random.randint(0,2)]
+
+            snid, rnid, level = Genom._getFeatures(cino)
 
             weight = parent["connections"]['weights'][parent["connections"]['snids'].index(snid)]
 
@@ -439,25 +439,26 @@ class Specie:
             structure[inos1[cino]]['bias'] = parent["bias"]
             structure[inos1[cino]]['activation'] = parent["activation"]
 
-        ### Uncommon (only taken from fitter species 1) ###
+        ### Uncommon (only taken from fitter genoms 1) ###
         for uino in uinos1:
-            structure[inos1[uino]] = specie1.structure[inos1[uino]]
+            structure[inos1[uino]] = genom1.structure[inos1[uino]]
 
-        SPECIECTR+=1
-        return cls(nids=nids, structure=structure, nids_output=specie1.nids_output, nids_input=specie1.nids_input,
-                   maxtimelevel=specie1.maxtimelevel, generation=generation, parents=[specie1._id, specie2._id], _id=SPECIECTR)
+        GENOMCTR+=1
+        return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                   maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, genom2._id], _id=GENOMCTR,
+                   crossover=True)
 
     ### =====================================
     # Calculate compability
     ### =====================================
     @staticmethod
-    def compabilityMeasure(specie1, specie2, c1=1.0, c2=1.0, c3=0.3):
-        inos1 = [val for key, val in specie1.innovationNumbers.items()]
-        inos2 = [val for key, val in specie1.innovationNumbers.items()]
-        ncons1 = specie1.numberOfConnections
-        ncons2 = specie2.numberOfConnections
-        nsumw1 = specie1.sumOfWeightsAndBiases
-        nsumw2 = specie2.sumOfWeightsAndBiases
+    def compabilityMeasure(genom1, genom2, c1=1.0, c2=1.0, c3=0.3):
+        inos1 = [val for key, val in genom1.innovationNumbers.items()]
+        inos2 = [val for key, val in genom1.innovationNumbers.items()]
+        ncons1 = genom1.numberOfConnections
+        ncons2 = genom2.numberOfConnections
+        nsumw1 = genom1.sumOfWeightsAndBiases
+        nsumw2 = genom2.sumOfWeightsAndBiases
 
         if ncons1 < 1 or ncons1 < 1:
             return 1
@@ -467,7 +468,7 @@ class Specie:
         uinos2 = list(set(inos2).difference(set(cinos)))
         ainos =  list(set(inos1+inos2))
 
-        cinos_index=[max([inos1.index(ino), inos2.index(ino)]) for ino in cinos] 
+        cinos_index=[max([inos1.index(ino), inos2.index(ino)]) for ino in cinos]
 
         excess, disjoint = [], []
         for ino in uinos1:
@@ -495,7 +496,7 @@ class Specie:
         executionLevel = []
         for nid in self.nids:
             if nid in self.nids_input:
-                executionLevel.append(0) 
+                executionLevel.append(0)
             else:
                 snids = self.structure[nid]["connections"]["snids"]
                 executionLevel.append(max([executionLevel[self.nids.index(snid)] for snid in snids], default=0)+1)
@@ -507,13 +508,13 @@ class Specie:
             y.append(-0.5*executionLevel.count(l) + executionLevel[i:].count(l)+0.1-0.2*np.random.rand())
 
         for nid_index, nid in enumerate(self.nids):
-            for snid, weight, level in zip(self.structure[nid]["connections"]["snids"], 
+            for snid, weight, level in zip(self.structure[nid]["connections"]["snids"],
                 self.structure[nid]["connections"]["weights"], self.structure[nid]["connections"]["level"]):
                 snid_index = self.nids.index(snid)
                 color = "r" if weight>0 else "b"
                 style = "-" if level == 0 else "--"
-   
-                plt.arrow(executionLevel[snid_index], y[snid_index], 
+
+                plt.arrow(executionLevel[snid_index], y[snid_index],
                           (executionLevel[nid_index]-executionLevel[snid_index]),(y[nid_index]-y[snid_index]), ls=style,
                           color=color, head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
 
@@ -534,60 +535,60 @@ class Specie:
 if __name__ == "__main__":
 
     npop =10
-    species = [Specie.initializeRandomly(ninputs=2, noutputs=2, maxtimelevel=1) for pop in range(npop)]
+    genoms = [Genom.initializeRandomly(ninputs=2, noutputs=2, maxtimelevel=1) for pop in range(npop)]
 
     for _ in range(100):
         X = np.random.rand(10,2)
-        
-        species_run = (specie.run(X) for specie in species)
-        
-        for run in species_run:
+
+        genoms_run = (genom.run(X) for genom in genoms)
+
+        for run in genoms_run:
             run
 
-        for specie1 in species:
-            for specie2 in species:
-                sigma = Specie.compabilityMeasure(specie1, specie2)
+        for genom1 in genoms:
+            for genom2 in genoms:
+                sigma = Genom.compabilityMeasure(genom1, genom2)
                 print(sigma)
         sys.exit(9)
 
 
         for n in range(npop):
 
-            species[n] = Specie.crossover(species[np.random.randint(0,npop)], species[np.random.randint(0,npop)])
+            genoms[n] = Genom.crossover(genoms[np.random.randint(0,npop)], genoms[np.random.randint(0,npop)])
 
             if np.random.rand() < 0.02:
-                species[n] = Specie.mutate_add_node(species[n])
+                genoms[n] = Genom.mutate_add_node(genoms[n])
             if np.random.rand() < 0.05:
-                species[n] = Specie.mutate_remove_node(species[n])
+                genoms[n] = Genom.mutate_remove_node(genoms[n])
             if np.random.rand() < 0.5:
-                species[n] = Specie.mutate_add_connection(species[n])
+                genoms[n] = Genom.mutate_add_connection(genoms[n])
             if np.random.rand() < 0.1:
-                species[n] = Specie.mutate_remove_connection(species[n])
+                genoms[n] = Genom.mutate_remove_connection(genoms[n])
             if np.random.rand() < 0.5:
-                species[n] = Specie.mutate_weight(species[n])
+                genoms[n] = Genom.mutate_weight(genoms[n])
             if np.random.rand() < 0.5:
-                species[n] = Specie.mutate_bias(species[n])
+                genoms[n] = Genom.mutate_bias(genoms[n])
             if np.random.rand() < 0.5:
-                species[n] = Specie.mutate_activation(species[n])
+                genoms[n] = Genom.mutate_activation(genoms[n])
 
-    for specie in species:
-        specie.showGraph()
-        print(specie.cost())
-    # specie6 = initializeRandomly()
+    for genom in genoms:
+        genom.showGraph()
+        print(genom.cost())
+    # genom6 = initializeRandomly()
 
-    # specie3 = Specie.crossover(specie1, specie2)
-    # specie4 = Specie.mutate_add_node(specie1)
-    # specie5 = Specie.mutate_remove_node(specie4)
-    # specie6 = Specie.crossover(specie4, specie5)
-    # specie5 = Specie.mutate_add_connection(specie5)
-    # specie3 = Specie.mutate_remove_connection(specie3)
+    # genom3 = Genom.crossover(genom1, genom2)
+    # genom4 = Genom.mutate_add_node(genom1)
+    # genom5 = Genom.mutate_remove_node(genom4)
+    # genom6 = Genom.crossover(genom4, genom5)
+    # genom5 = Genom.mutate_add_connection(genom5)
+    # genom3 = Genom.mutate_remove_connection(genom3)
 
-    # specie4.showGraph()
-    # specie5.showGraph()
-    # # 
+    # genom4.showGraph()
+    # genom5.showGraph()
+    # #
 
     # for _ in range(1):
     #     print("####", _ ,"####")
     #     X = np.random.rand(10,2)
-    #     y = specie5.run(X)
+    #     y = genom5.run(X)
     #     print(y)
