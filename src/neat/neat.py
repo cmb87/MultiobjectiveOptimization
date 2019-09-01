@@ -204,7 +204,7 @@ def simulation(genom, timesteps=1000, render=False):
 #### TEST #######
 if __name__ == "__main__":
 
-    if True:
+    if False:
         ### Use gym as test environment ###
 
 
@@ -228,6 +228,10 @@ if __name__ == "__main__":
         for specieID, specie in neat.species.items():
             x = np.linspace(0,8,20).reshape(20,1)
             y = np.sin(x)
+            if len(specie["genomes"])>0:
+                pass
+            else:
+                continue
             specie["genomes"][0].showGraph()
             yhat = -1 + 2*specie["genomes"][0].run( 0.25*(x-2))
             plt.plot(x.reshape(-1), y.reshape(-1),'bo-')

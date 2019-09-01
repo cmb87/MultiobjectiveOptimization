@@ -191,16 +191,6 @@ class Genom:
         GENOMCTR +=1
         return genom
 
-    ### get structure cost ###
-    def cost(self, c1=1.0, c2=1.0, c3=1.0):
-        nnids = len(self.nids)
-        ncons = sum([len(self.structure[nid]["connections"]["snids"]) for i, nid in enumerate(self.nids)])
-        if ncons == 0:
-            awgts = 0
-        else:
-            awgts = sum([sum(self.structure[nid]["connections"]["weights"])/ncons for i, nid in enumerate(self.nids)])/nnids
-        return nnids*c1 + ncons*c2 + awgts*c3
-
     ### Mutate bias ###
     @classmethod
     def mutate_activation(cls, genom1, generation=None):
@@ -220,7 +210,7 @@ class Genom:
         nids = genom1.nids.copy()
         structure = copy.deepcopy(genom1.structure)
         nid_mut = nids[np.random.randint(len(genom1.nids_input), len(nids))]
-        if np.random.rand() > pbigChange:
+        if np.random.rand() < pbigChange:
             structure[nid_mut]["bias"] = -valueabs+2*valueabs*np.random.rand()
         else:
             structure[nid_mut]["bias"] += valueabs*np.random.normal()
@@ -239,7 +229,7 @@ class Genom:
         if len(structure[nid_mut]["connections"]["snids"]) > 0:
             index = np.random.randint(0, len(structure[nid_mut]["connections"]["snids"]))
 
-            if np.random.rand() > pbigChange:
+            if np.random.rand() < pbigChange:
                 structure[nid_mut]["connections"]["weights"][index] = -valueabs+2*valueabs*np.random.rand()
             else:
                 structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()

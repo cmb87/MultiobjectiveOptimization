@@ -13,4 +13,4 @@ def tanh(x):
     return np.tanh(x)
 
 
-ACTIVATIONS = [identity, sigmoid]
+ACTIVATIONS = [identity, tanh]
