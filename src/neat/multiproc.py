@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 import matplotlib.pyplot as plt
-env = gym.make("Pendulum-v0")
+env = gym.make("CartPole-v0")
 
 
 def simulation(timesteps=1000, render=False):
@@ -11,21 +11,21 @@ def simulation(timesteps=1000, render=False):
     for t in range(timesteps):
 
         ### Run single genomes ###
-        s_norm = np.asarray(s).reshape(1, -1) / 10
-        a_norm = np.random.rand(1)
-        a = 4 * a_norm
+        a = np.zeros((2, 1))
+        idx = np.random.choice([0, 1], 1)[0]
 
         ### Run simulation environment ###
-        s2, r, done, info = env.step(a)
+        s2, r, done, info = env.step(idx)
         ep_reward += r
         s = s2
         ### plotting and stopping ###
         if done:
-            s = env.reset()
+            print(ep_reward)
+            break
         if render:
             env.render()
 
-    return 10 + ep_reward / timesteps
+    return ep_reward
 
 
 import sys
@@ -33,8 +33,6 @@ import sys
 reward = []
 for _ in range(15):
     reward.append(simulation())
-
-print(np.mean(np.asarray(reward)))
 sys.exit()
 plt.plot(reward)
 plt.axhline(y=np.mean(np.asarray(reward)), color="r")

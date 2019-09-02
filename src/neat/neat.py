@@ -12,15 +12,15 @@ from src.optimizer.pareto import Pareto
 
 class NEAT:
     ### Constructor ###
-    def __init__(self, xbounds, ybounds, npop=100, maxtimelevel=1):
+    def __init__(self, xdim, ydim, npop=100, maxtimelevel=1, output_activation=None):
         self.currentIteration = 0
-        self.xdim = len(xbounds)
-        self.ydim = len(ybounds)
+        self.xdim = xdim
+        self.ydim = ydim
         self.species = {}
         self.ybest = np.zeros((0, 1))
         self.ybest_adjusted = np.zeros((0, 1))
         self.npop = npop
-
+        self.output_activation = ydim*[0] if output_activation is None else output_activation
 
     ### Initialize ###
     def initialize(self):
@@ -31,9 +31,9 @@ class NEAT:
         pass
 
     ### Run different genomes for different generations ###
-    def iterate(self, generationMax, sigmat=1.5):
+    def iterate(self, generationMax, sigmat=1.0):
 
-        genomes = [Genom.initializeRandomly(ninputs=self.xdim, noutputs=self.ydim, maxtimelevel=1) for _ in range(self.npop)]
+        genomes = [Genom.initializeRandomly(ninputs=self.xdim, noutputs=self.ydim, maxtimelevel=1, output_activation=self.output_activation) for _ in range(self.npop)]
         self.species = {0: {"genome_prototype": genomes[0], "genomes": [], "fitness_adjusted": None,
                        "fitness":[] , "best_fitness": -1e+4, "best_fitness_gen": 0, "noffspring": 0}}
         specieCtr = 0
@@ -56,6 +56,7 @@ class NEAT:
             for f,genom in zip(fitness, genomes):
                 matched = False
                 for ngenomes, specie in self.species.items():
+                    print(specie["genome_prototype"])
                     if Genom.compabilityMeasure(genom, specie["genome_prototype"]) <= sigmat:
                         specie["genomes"].append(genom)
                         specie["fitness"].append(f)
@@ -79,7 +80,7 @@ class NEAT:
                 ### Sort by fitness ###
                 f = np.asarray(specie["fitness"]).reshape(-1)
                 idxs = f.argsort()[::-1]
-                ikill = int(0.2*ngenomes) if ngenomes > 1 else 1
+                ikill = int(0.4*ngenomes) if ngenomes > 1 else 1
 
                 ### Sort by fitness ###
                 f = f[idxs]
@@ -141,8 +142,9 @@ class NEAT:
                     genom = specie["genomes"][0]
 
                 ### Mutations ###
-                if np.random.rand() < 0.01:
-                    genom = Genom.mutate_activation(genom, generation=generation)
+                if np.random.rand() < 0.00:
+                    #genom = Genom.mutate_activation(genom, generation=generation)
+                    pass
                 if np.random.rand() < 0.05:
                     genom = Genom.mutate_add_node(genom, generation=generation)
                 if np.random.rand() < 0.05:
@@ -167,14 +169,13 @@ def bestfit(genom):
     x = np.linspace(0,8,20).reshape(-1,1)
     y = np.sin(x)
 
-    yhat = -1 + 2*genom.run(0.25*(x-2))
+    yhat = -1 + 2*genom.run(0.1*(x-4))
     rmse = np.mean(np.abs(y-yhat)**0.5)
 
     return 10.0-rmse
 
 
 # ### Simulation environment for neat ###
-env = gym.make("Pendulum-v0")
 def simulation(genom, timesteps=1000, render=False):
     ep_reward = 0
     #print("Running genom {}".format(genom))
@@ -200,28 +201,67 @@ def simulation(genom, timesteps=1000, render=False):
     return 10+ep_reward/timesteps/15
 
 
+def cartPole(genom, timesteps=400, render=False, repeat=15):
+    ep_reward = 0
+    #print("Running genom {}".format(genom))
+    for _ in range(repeat):
+        s = env.reset()
+        for t in range(timesteps):
+
+            ### Run single genomes ###
+            probs = genom.run(s.reshape(1,-1))
+            probs = probs.reshape(-1)/np.sum(probs)
+
+            a = np.random.choice([0, 1], 1, p=probs)[0]
+
+            ### Run simulation environment ###
+            s2, r, done, info = env.step(a)
+            ep_reward += r
+            s = s2
+            ### plotting and stopping ###
+            if done:
+                break
+            if render:
+                env.render()
+
+    return ep_reward/repeat
+
+
 
 #### TEST #######
 if __name__ == "__main__":
 
     if False:
         ### Use gym as test environment ###
-
-
-        xdim = env.observation_space.shape[0]
-        ydim = env.action_space.shape[0]
-        ybounds =  [(env.action_space.low, env.action_space.high)]
-        xbounds =  xdim*[(-10,10)]
+        # ### Simulation environment for neat ###
+        env = gym.make("Pendulum-v0")
 
         ### NEAT ###
-        neat = NEAT(xbounds, ybounds, npop=100, maxtimelevel=1)
+        neat = NEAT(dim=3, ydim=1, npop=100, maxtimelevel=1)
         neat.run = simulation
         neat.iterate(50, sigmat=1.0)
 
+    elif True:
+        ### Use gym as test environment ###
+        # ### Simulation environment for neat ###
+        env = gym.make("CartPole-v0")
+
+        xdim = 4
+        ydim = 2
+
+        ### NEAT ###
+        neat = NEAT(xdim, ydim, npop=20, maxtimelevel=1, output_activation=[1,1])
+        neat.run = cartPole
+        neat.iterate(40, sigmat=0.5)
+
+        for specieID, specie in neat.species.items():
+            if len(specie["genomes"])>0:
+                neat.run(specie["genomes"][0], render=True)
+                specie["genomes"][0].showGraph()
 
     else:
         ### NEAT ###
-        neat = NEAT(xbounds=[(0,4)], ybounds=[(-1,1)], npop=60, maxtimelevel=1)
+        neat = NEAT(xdim=1, ydim=1, npop=60, maxtimelevel=1)
         neat.run = bestfit
         neat.iterate(100)
 
@@ -233,7 +273,7 @@ if __name__ == "__main__":
             else:
                 continue
             specie["genomes"][0].showGraph()
-            yhat = -1 + 2*specie["genomes"][0].run( 0.25*(x-2))
+            yhat = -1 + 2*specie["genomes"][0].run( 0.1*(x-4))
             plt.plot(x.reshape(-1), y.reshape(-1),'bo-')
             plt.plot(x.reshape(-1), yhat.reshape(-1),'ro-')
             print(np.mean((y-yhat)**2))

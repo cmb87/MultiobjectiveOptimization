@@ -132,7 +132,8 @@ class Genom:
         node_states[:,self.nids_input_index, 0] = X
 
         ### Forward propagation ###
-        for nid_index, nid in enumerate(self.nids):
+        for nid_index in range(len(self.nids_input), len(self.nids)):
+            nid = self.nids[nid_index]
             snids  = self.structure[nid]["connections"]["snids"]
             weights  = self.structure[nid]["connections"]["weights"]
             level = self.structure[nid]["connections"]["level"] # The time level of the connection
@@ -150,6 +151,7 @@ class Genom:
             else:
                 continue
 
+        #print(node_states[:,:,0])
         ### Store node state (for recurrent connections) ###
         self.last_states.insert(0, node_states[:,:,0].copy())
         self.last_states = self.last_states[:self.maxtimelevel]
@@ -163,17 +165,21 @@ class Genom:
     ### ======================================
     ### Create random structure ###
     @classmethod
-    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.0, paddbias=0.5, pmutact=0.5, nrerun=None):
+    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.0, paddbias=0.5, pmutact=0.0, nrerun=None, output_activation=None):
 
         global NIDMAX, GENOMCTR
         nids_input, nids_output = [x for x in range(0,ninputs)], [x for x in range(ninputs ,ninputs+noutputs)]
         nids = nids_input+nids_output
         nrerun = max([ninputs, noutputs]) if nrerun is None else nrerun
         NIDMAX = max(nids+[NIDMAX])
+        output_activation = noutputs*[0] if output_activation is None else output_activation
+        input_activation = ninputs*[0]
+
+        assert len(output_activation) == noutputs, "Output activation must match number of outputs"
 
         structure= {}
-        for nid in nids:
-            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": []},'activation': 0, 'bias': 0.0}
+        for nid,act in zip(nids, input_activation+output_activation):
+            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": []},'activation': act, 'bias': 0.0}
 
         genom = cls(nids, nids_input, nids_output, structure, maxtimelevel=maxtimelevel,
                      _id=GENOMCTR, generation=0, parents=['init'])
