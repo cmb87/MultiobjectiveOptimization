@@ -173,6 +173,9 @@ class Genom:
             if np.random.rand() < pmutact:
                 pass #genom = Genom.mutate_activation(genom)
 
+        while genom.numberOfConnections == 0:
+            genom = Genom.mutate_add_connection(genom)
+
         GENOMCTR +=1
         return genom
 
@@ -198,7 +201,7 @@ class Genom:
         if np.random.rand() < pbigChange:
             structure[nid_mut]["bias"] = -valueabs+2*valueabs*np.random.rand()
         else:
-            structure[nid_mut]["bias"] += 0.1*valueabs*np.random.normal()
+            structure[nid_mut]["bias"] += valueabs*np.random.normal()
 
         return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
                    maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_bias'], _id=genom1._id,
@@ -218,7 +221,7 @@ class Genom:
             if np.random.rand() < pbigChange:
                 structure[nid_mut]["connections"]["weights"][index] = -valueabs+2*valueabs*np.random.rand()
             else:
-                structure[nid_mut]["connections"]["weights"][index] += 0.1*valueabs*np.random.normal()
+                structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()
 
             return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
                        maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_weight'], _id=genom1._id,
@@ -270,7 +273,7 @@ class Genom:
         else:
             nid_remove = nids[np.random.randint(len(genom1.nids_input), len(nids)-len(genom1.nids_output))]
 
-        if len(structure[nid_remove]["connections"]["snids"]) > 0:
+        if len(structure[nid_remove]["connections"]["snids"]) > 1:
             index = np.random.randint(0, len(structure[nid_remove]["connections"]["snids"]))
             structure[nid_remove]["connections"]["innovations"].pop(index)
             structure[nid_remove]["connections"]["weights"].pop(index)
@@ -388,6 +391,7 @@ class Genom:
     def crossover(cls, genom1, genom2, generation=None):
         global GENOMCTR
 
+
         n1, n2 = genom1.innovationNumbers, genom2.innovationNumbers
         cn = list(set(n1) & set(n2))
         n3 = list(set(n1 + [ino for ino in n2 if ino<max(n1)]))
@@ -449,6 +453,7 @@ class Genom:
         if not len(nids) == len(structure):
             print(list(structure.keys()))
             print(nids)
+
 
         ### NIDS ###
         GENOMCTR+=1

@@ -77,7 +77,7 @@ class NEAT:
                 ### Sort by fitness ###
                 f = np.asarray(specie["fitness"]).reshape(-1)
                 idxs = f.argsort()[::-1]
-                ikill = int(0.4*ngenomes) if ngenomes > 1 else 1
+                ikill = int(0.2*ngenomes) if ngenomes > 1 else 1
 
                 ### Sort by fitness ###
                 f = f[idxs]
@@ -142,11 +142,11 @@ class NEAT:
                 ### Mutations ###
                 if np.random.rand() < 0.00:
                     pass #genom = Genom.mutate_activation(genom, generation=generation)
-                if np.random.rand() < 0.05:
+                if np.random.rand() < 0.03:
                     genom = Genom.mutate_add_node(genom, generation=generation)
-                if np.random.rand() < 0.05:
+                if np.random.rand() < 0.03:
                     genom = Genom.mutate_remove_node(genom, generation=generation)
-                if np.random.rand() < 0.05:
+                if np.random.rand() < 0.07:
                     genom = Genom.mutate_add_connection(genom, generation=generation)
                 if np.random.rand() < 0.05:
                     genom = Genom.mutate_remove_connection(genom, generation=generation)
@@ -199,7 +199,7 @@ def pendulum(genom, timesteps=1000, render=False, repeat=15):
 
     return 10+ep_reward/timesteps/repeat
 
-env = gym.make("CartPole-v0")
+
 
 def cartPole(genom, timesteps=400, render=False, repeat=15):
     ep_reward = 0
@@ -231,29 +231,29 @@ def cartPole(genom, timesteps=400, render=False, repeat=15):
 #### TEST #######
 if __name__ == "__main__":
 
-    if False:
+    if True:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
         env = gym.make("Pendulum-v0")
 
         ### NEAT ###
-        neat = NEAT(xdim=3, ydim=1, npop=20, maxtimelevel=1, output_activation=[2])
+        neat = NEAT(xdim=3, ydim=1, npop=100, maxtimelevel=1, output_activation=[0])
         neat.run = pendulum
-        neat.iterate(20, sigmat=3.0)
+        neat.iterate(30, sigmat=2.5)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
                 neat.run(specie["genomes"][0], render=True)
                 specie["genomes"][0].showGraph()
 
-    elif True:
+    elif False:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
-        
+        env = gym.make("CartPole-v0")
         ### NEAT ###
-        neat = NEAT(xdim=4, ydim=2, npop=25, maxtimelevel=1, output_activation=[1,1])
+        neat = NEAT(xdim=4, ydim=2, npop=100, maxtimelevel=1, output_activation=[1,1])
         neat.run = cartPole
-        neat.iterate(40, sigmat=2.0)
+        neat.iterate(30, sigmat=2.0)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
