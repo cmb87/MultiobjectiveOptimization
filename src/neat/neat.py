@@ -47,10 +47,9 @@ class NEAT:
 
             ### Run genomes ###
             print("##### Running Generation {} #####".format(generation))
-            p = multiprocessing.Pool(processes=2)
+            p = multiprocessing.Pool(processes=3)
             fitness = p.map(self.run, [genom for genom in genomes])
             fitness = np.asarray(fitness).reshape(-1)
-
 
             ### Calculate compability distance ###
             for f,genom in zip(fitness, genomes):
@@ -65,7 +64,6 @@ class NEAT:
                     specieCtr+=1
                     self.species[specieCtr] = {"genome_prototype": genom, "genomes": [genom], "fitness_adjusted": None,
                                           "fitness":[f], "best_fitness": f, "best_fitness_gen": generation, "noffspring": 0}
-
 
             ### Adjust by group fitness and kill 50% ###
             for specieID, specie in self.species.items():
@@ -85,6 +83,7 @@ class NEAT:
                 f = f[idxs]
                 fadj = f/ngenomes
                 genomes = [genomes[idx] for idx in idxs]
+
                 ### kill half of the population ###
                 specie["fitness"] = f[:ikill].tolist()
                 specie["genomes"] = genomes[:ikill]
@@ -142,9 +141,8 @@ class NEAT:
 
                 ### Mutations ###
                 if np.random.rand() < 0.00:
-                    #genom = Genom.mutate_activation(genom, generation=generation)
-                    pass
-                if np.random.rand() < 0.15:
+                    pass #genom = Genom.mutate_activation(genom, generation=generation)
+                if np.random.rand() < 0.05:
                     genom = Genom.mutate_add_node(genom, generation=generation)
                 if np.random.rand() < 0.05:
                     genom = Genom.mutate_remove_node(genom, generation=generation)
@@ -152,9 +150,9 @@ class NEAT:
                     genom = Genom.mutate_add_connection(genom, generation=generation)
                 if np.random.rand() < 0.05:
                     genom = Genom.mutate_remove_connection(genom, generation=generation)
-                if np.random.rand() < 0.8:
+                if np.random.rand() < 0.9:
                     genom = Genom.mutate_weight(genom, generation=generation)
-                if np.random.rand() < 0.8:
+                if np.random.rand() < 0.9:
                     genom = Genom.mutate_bias(genom, generation=generation)
 
                 ### Finally append it ###
@@ -201,6 +199,7 @@ def pendulum(genom, timesteps=1000, render=False, repeat=15):
 
     return 10+ep_reward/timesteps/repeat
 
+env = gym.make("CartPole-v0")
 
 def cartPole(genom, timesteps=400, render=False, repeat=15):
     ep_reward = 0
@@ -250,12 +249,11 @@ if __name__ == "__main__":
     elif True:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
-        env = gym.make("CartPole-v0")
-
+        
         ### NEAT ###
-        neat = NEAT(xdim=4, ydim=2, npop=20, maxtimelevel=1, output_activation=[1,1])
+        neat = NEAT(xdim=4, ydim=2, npop=25, maxtimelevel=1, output_activation=[1,1])
         neat.run = cartPole
-        neat.iterate(40, sigmat=3.0)
+        neat.iterate(40, sigmat=2.0)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
@@ -266,7 +264,7 @@ if __name__ == "__main__":
         ### NEAT ###
         neat = NEAT(xdim=1, ydim=1, npop=60, maxtimelevel=1)
         neat.run = bestfit
-        neat.iterate(100)
+        neat.iterate(20)
 
         for specieID, specie in neat.species.items():
             x = np.linspace(0,8,20).reshape(20,1)
