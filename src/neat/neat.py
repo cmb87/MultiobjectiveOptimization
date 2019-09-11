@@ -71,9 +71,8 @@ class NEAT:
 
             ### Adjust by group fitness and kill a certain % ###
             for specieID, specie in self.species.items():
-                ### Check if specie is populated ###
-                genomes = specie["genomes"]
-                ngenomes = len(genomes)
+                ### Check if specie is populated ### 
+                ngenomes = len(specie["genomes"])
                 if ngenomes == 0:
                     specie["noffspring"] = 0
                     continue
@@ -81,32 +80,32 @@ class NEAT:
                 ### Sort by fitness ###
                 f = np.asarray(specie["fitness"]).reshape(-1)
                 idxs = f.argsort()[::-1]
-                ikill = int(keepratio*ngenomes) if ngenomes > 1 else 1
+                ikill = int(keepratio*ngenomes) if int(keepratio*ngenomes) > 1 else 1
 
                 ### Sort by fitness ###
                 f = f[idxs]
                 fadj = f/ngenomes
-                self.genomes = [self.genomes[idx] for idx in idxs]
+                specie["genomes"] = [specie["genomes"][idx] for idx in idxs]
 
                 ### kill half of the population ###
                 specie["fitness"] = f[:ikill].tolist()
-                specie["genomes"] = self.genomes[:ikill]
+                specie["genomes"] = specie["genomes"][:ikill]
                 specie["fitness_adjusted"] = fadj[:ikill].tolist()
-                specie["noffspring"] = np.sum(fadj[:ikill])
+                specie["noffspring"] = np.mean(fadj[:ikill]) if specie["reproduce"] else -1e+3
 
                 ### Check if specie has gotten better ###
                 if f[0] > specie["best_fitness"]:
                     ### Specie has gotten better so we reset the best_fitness_gen to current generation ###
                     specie["best_fitness"], specie["best_fitness_gen"] = f[0], generation
-                    specie["best_genom"] = copy.copy(self.genomes[0])
+                    specie["best_genom"] = copy.copy(specie["genomes"][0])
+                    specie["reproduce"] = True
 
-                elif (generation-specie["best_fitness_gen"]) > maxsurvive and len(self.species)>1:
+                elif (generation-specie["best_fitness_gen"]) > maxsurvive:
                     ### No improvement since Nextinguish generation ###
-                    specie["best_fitness_gen"], specie["reproduce"], specie["noffspring"] = generation, False, 0.0
-                    print("-> Stagnat species {}! Disabling reproducing!".format(specieID))
+                    specie["best_fitness_gen"], specie["reproduce"], specie["noffspring"] = generation, False, -1e+3
 
                 ### Print summary ###
-                print("-> Specie: {}, Pop: {}, FitMin: {:.3f}/{:.3f}, FitMean: {:.3f}/{:.3f}, FitMax: {:.3f}/{:.3f}".format(specieID, ngenomes, f.min(), fadj.min(), f.mean(), fadj.mean(), f.max(), fadj.max()))
+                print("-> Specie: {}, Pop: {}, FitMin: {:.3f}/{:.3f}, FitMean: {:.3f}/{:.3f}, FitMax: {:.3f}/{:.3f}, Reprod: {}".format(specieID, ngenomes, f.min(), fadj.min(), f.mean(), fadj.mean(), f.max(), fadj.max(), specie["reproduce"]))
 
 
             ### Offspring ###
@@ -114,9 +113,8 @@ class NEAT:
             pmate = np.exp(pmate) / np.sum(np.exp(pmate))
 
             ### Elitists ###
-            self.genomes = [specie["best_genom"]for specieID, specie in self.species.items() if len(specie["genomes"]) > 0]
+            self.genomes = [specie["best_genom"]for specieID, specie in self.species.items() if len(specie["genomes"]) > 0 and specie["reproduce"]]
 
-            print("pmate:", pmate, list(self.species.keys()))
             ### Next generation ###
             while len(self.genomes)<self.npop:
                 #print(list(species.keys()), noffsprings, )
@@ -124,7 +122,7 @@ class NEAT:
                 specie = self.species[specieID]
 
                 ### Sanity check ###
-                if len(specie["genomes"]) == 0:
+                if len(specie["genomes"]) == 0 or not specie["reproduce"]:
                     continue
 
                 ### Crossover ###
@@ -166,15 +164,15 @@ def bestfit(genom):
     x = np.linspace(0,8,20).reshape(-1,1)
     y = np.sin(x)
 
-    xnorm = (x-4)/4
-    yhat = 2*genom.run(xnorm)
+    xnorm = (x-4)
+    yhat = genom.run(xnorm)
     rmse = np.mean((y-yhat)**2)
 
     return 10.0-rmse
 
 
 # ### Simulation environment for neat ###
-def pendulum(genom, timesteps=1000, render=False, repeat=15):
+def pendulum(genom, timesteps=200, render=False, repeat=30):
     env = gym.make("Pendulum-v0")
     ep_reward = 0
     ylb, yub = np.asarray([-2.0]), np.asarray([2.0])
@@ -199,9 +197,34 @@ def pendulum(genom, timesteps=1000, render=False, repeat=15):
             if render:
                 env.render()
 
-    return 10+ep_reward/timesteps/repeat
+    return 10+ep_reward/repeat/timesteps
 
+def cartPoleNonMarkovian(genom, timesteps=400, render=False, repeat=15):
+    ep_reward = 0
+    env = gym.make("CartPole-v0")
+    for _ in range(repeat):
+        s = env.reset()
+        for t in range(timesteps):
 
+            ### Run single genomes ###
+            #logits = genom.run(s.reshape(1,-1)).reshape(-1)
+            #probs = np.exp(logits) / np.sum(np.exp(logits))
+            #a = np.random.choice([0, 1], 1, p=probs)[0]
+
+            logits = genom.run(s[[0,2]].reshape(1,-1)).reshape(-1)
+            probs = np.exp(logits) / np.sum(np.exp(logits))
+            a = np.random.choice([0, 1], 1, p=probs)[0]
+            ### Run simulation environment ###
+            s2, r, done, info = env.step(a)
+            ep_reward += r
+            s = s2
+            ### plotting and stopping ###
+            if done:
+                break
+            if render:
+                env.render()
+
+    return ep_reward/repeat
 
 def cartPole(genom, timesteps=400, render=False, repeat=15):
     ep_reward = 0
@@ -267,7 +290,7 @@ if __name__ == "__main__":
         neat = NEAT(xdim=4, ydim=2, npop=100, maxtimelevel=1, output_activation=[0,0])
         neat.initialize()
         neat.run = cartPole
-        neat.iterate(15, sigmat=3.0)
+        neat.iterate(15, sigmat=2.5, maxsurvive=5)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
@@ -278,18 +301,33 @@ if __name__ == "__main__":
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
         
-
         ### NEAT ###
-        neat = NEAT(xdim=3, ydim=1, npop=30, maxtimelevel=1, output_activation=[2])
+        neat = NEAT(xdim=2, ydim=2, npop=100, maxtimelevel=2, output_activation=[0,0])
         neat.initialize()
-        neat.run = pendulum
-        neat.iterate(15, sigmat=2.0, keepratio=0.2, maxsurvive=10, paddNode=0.1, prmNode=0.05, paddCon=0.17, prmCon=0.04, pmutW=0.9)
+        neat.run = cartPoleNonMarkovian
+        neat.iterate(55, sigmat=2.5, keepratio=0.3, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.37, prmCon=0.04, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
                 neat.run(specie["best_genom"], render=True)
                 specie["genomes"][0].showGraph()
 
+    elif False:
+        ### Use gym as test environment ###
+        # ### Simulation environment for neat ###
+        
+
+        ### NEAT ###
+        neat = NEAT(xdim=3, ydim=1, npop=30, maxtimelevel=1, output_activation=[2])
+        neat.initialize()
+        neat.run = pendulum
+        neat.iterate(20, sigmat=2.5, keepratio=0.3, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.37, prmCon=0.04, pmutW=0.8)
+
+        for specieID, specie in neat.species.items():
+            if len(specie["genomes"])>0:
+                specie["genomes"][0].showGraph()
+                neat.run(specie["best_genom"], render=True)
+                
     elif False:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
@@ -308,20 +346,21 @@ if __name__ == "__main__":
 
     else:
         ### NEAT ###
-        neat = NEAT(xdim=1, ydim=1, npop=60, maxtimelevel=1, output_activation=[0])
+        neat = NEAT(xdim=1, ydim=1, npop=100, maxtimelevel=1, output_activation=[2])
         neat.run = bestfit
         neat.initialize()
-        neat.iterate(20, sigmat=3.0, keepratio=0.2, maxsurvive=10, paddNode=0.18, prmNode=0.05, paddCon=0.17, prmCon=0.00, pmutW=0.8)
+        neat.iterate(40, sigmat=2.5, keepratio=0.1, maxsurvive=5, paddNode=0.1, prmNode=0.05, paddCon=0.47, prmCon=0.1, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             x = np.linspace(0,8,20).reshape(20,1)
             y = np.sin(x)
             if len(specie["genomes"])>0:
-               # specie["genomes"][0].showGraph()
-                xnorm = (x-4)/4
-                yhat = 2*specie["best_genom"].run(xnorm)
+                xnorm = (x-4)
+                yhat = specie["best_genom"].run(xnorm)
+                specie["genomes"][0].showGraph()
                 plt.plot(x, yhat,'ro-')
+                plt.plot(x.reshape(-1), y.reshape(-1),'bo-')
+                plt.show()
+                
             else:
                 continue
-        plt.plot(x.reshape(-1), y.reshape(-1),'bo-')
-        plt.show()

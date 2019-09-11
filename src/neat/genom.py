@@ -147,7 +147,7 @@ class Genom:
     ### ======================================
     ### Create random structure ###
     @classmethod
-    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.0, paddbias=0.5, pmutact=0.0, nrerun=None, output_activation=None):
+    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.02, paddbias=0.5, pmutact=0.0, nrerun=None, output_activation=None):
         global GENOMCTR
         nids_input, nids_output = [x for x in range(0,ninputs)], [x for x in range(ninputs ,ninputs+noutputs)]
         nids = nids_input+nids_output
@@ -207,6 +207,8 @@ class Genom:
         else:
             structure[nid_mut]["bias"] += valueabs*np.random.normal()
 
+       # structure[nid_mut]["bias"] = np.clip(structure[nid_mut]["bias"],-2,2)
+
         return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
                    maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_bias'], _id=genom1._id,
                    iter_survived=genom1.iter_survived, crossover=genom1.crossover)
@@ -225,6 +227,8 @@ class Genom:
                 structure[nid_mut]["connections"]["weights"][index] = -valueabs+2*valueabs*np.random.rand()
             else:
                 structure[nid_mut]["connections"]["weights"][index] += valueabs*np.random.normal()
+
+            #structure[nid_mut]["connections"]["weights"][index] = np.clip(structure[nid_mut]["connections"]["weights"][index],-2,2)
 
             return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
                        maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_weight'], _id=genom1._id,
@@ -395,10 +399,14 @@ class Genom:
     def crossover(cls, genom1, genom2, generation=None):
         global GENOMCTR
 
-
         n1, n2 = genom1.innovationNumbers, genom2.innovationNumbers
         cn = list(set(n1) & set(n2))
-        n3 = list(set(n1 + [ino for ino in n2 if ino<max(n1)]))
+
+        excess = [ino for ino in n1 if ino>max(cn,default=0)] 
+        disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn] + [ino for ino in n2 if ino<max(cn,default=0) and not ino in cn]
+
+        n3 = cn + excess + disjoint
+
 
         ### Get NIDS ###
         nids_remaining = []
@@ -470,44 +478,24 @@ class Genom:
     ### =====================================
     @staticmethod
     def compabilityMeasure(genom1, genom2, c1=1.0, c2=1.0, c3=0.3):
-        inos1 = genom1.innovationNumbers
-        inos2 = genom2.innovationNumbers
-        ncons1 = genom1.numberOfConnections
-        ncons2 = genom2.numberOfConnections
+        ncons1 = max([genom1.numberOfConnections,1])
+        ncons2 = max([genom2.numberOfConnections,1])
         nsumw1 = genom1.sumOfWeightsAndBiases
         nsumw2 = genom2.sumOfWeightsAndBiases
 
-        if ncons1 < 1 or ncons1 < 1:
-            return 1
+        n1, n2 = genom1.innovationNumbers, genom2.innovationNumbers
+        cn = list(set(n1) & set(n2))
 
-        cinos  = list(set(inos1) & set(inos2))
-        uinos1 = list(set(inos1).difference(set(cinos)))
-        uinos2 = list(set(inos2).difference(set(cinos)))
-        ainos =  list(set(inos1+inos2))
+        excess = [ino for ino in n1 if ino>max(cn,default=0)] + [ino for ino in n2 if ino>max(cn,default=0)]
+        disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn] + [ino for ino in n2 if ino<max(cn,default=0) and not ino in cn]
 
-        cinos_index=[max([inos1.index(ino), inos2.index(ino)]) for ino in cinos]
-
-        excess, disjoint = [], []
-        for ino in uinos1:
-            if inos1.index(ino) > max(cinos_index, default=0):
-                excess.append(ino)
-            else:
-                disjoint.append(ino)
-
-        for ino in uinos2:
-            if inos2.index(ino) > max(cinos_index, default=0):
-                excess.append(ino)
-            else:
-                disjoint.append(ino)
-
-        N = len(inos1) if len(inos1) > len(inos2) else len(inos2)
-
-        return c1*len(excess)/(N+1e-5) + c2*len(disjoint)/(N+1e-5) + c3*abs(nsumw1/(ncons1+1e-5)-nsumw2/(ncons2+1e-5))
+        N = max([len(n1),len(n2),1])
+        return c1*len(excess)/N + c2*len(disjoint)/N + c3*abs(nsumw1/ncons1-nsumw2/ncons2)
 
 
 
     ### Use to create a graph ###
-    def showGraph(self, showLabels=True, store=False, picname="network.png"):
+    def showGraph(self, showLabels=True, store=False, picname="network.png", colors=["k", "gray","blue","m"]):
         executionLevel = []
         for nid in self.nids:
             if nid in self.nids_input:
@@ -528,13 +516,10 @@ class Genom:
                 snid_index = self.nids.index(snid)
                 color = "r" if weight>0 else "b"
                 style = "-" if level == 0 else "--"
-
-                plt.arrow(executionLevel[snid_index], y[snid_index],
-                          (executionLevel[nid_index]-executionLevel[snid_index]),(y[nid_index]-y[snid_index]), ls=style,
-                          color=color, head_width=0.05, head_length=0.1, fc=color, ec=color, length_includes_head=True)
-
+                plt.plot([executionLevel[snid_index], executionLevel[nid_index]], [y[snid_index], y[nid_index]], ls=style, color=color)
+   
         for nid_index, nid in enumerate(self.nids):
-            plt.plot(executionLevel[nid_index], y[nid_index], 'o', color="k", markersize=12)
+            plt.plot(executionLevel[nid_index], y[nid_index], 'o', color=colors[self.structure[nid]["activation"]], markersize=12)
             if showLabels:
                 plt.text(executionLevel[nid_index], y[nid_index], nid, ha='center', va='center', color="w")
         plt.title("{}".format(self))

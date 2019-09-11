@@ -6,7 +6,7 @@ def identity(x):
 
 
 def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
+    return 1 / (1 + np.exp(-4.9*x))
 
 
 def tanh(x):
