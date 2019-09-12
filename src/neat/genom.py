@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 
 from activations import ACTIVATIONS
 
-INNOVATIONSCTR = 0
-INNOVATIONS = {}
-GENOMCTR = 0
+INNOVATIONSCTR, INNOVATIONS, GENOMCTR = 0, {}, 0
+NODES = {}
 
 ### Genom class for neat ###
 class Genom:
@@ -238,12 +237,12 @@ class Genom:
 
     ### Add connection ###
     @classmethod
-    def mutate_add_connection(cls, genom1, valueabs=1, maxretries=1, generation=None, timelevel=None):
+    def mutate_add_connection(cls, genom1, valueabs=1, pbigChange=0.1, maxretries=1, generation=None, timelevel=None):
         nids = genom1.nids.copy()
         structure = copy.deepcopy(genom1.structure)
         timelevel = genom1.maxtimelevel if timelevel is None else timelevel
         level = np.random.randint(0, timelevel)
-        weight = valueabs*np.random.normal()
+        weight = valueabs*np.random.normal() if np.random.rand() > pbigChange else -valueabs+2*np.random.rand()
 
         #nid_add = nids[np.random.randint(len(genom1.nids_input), len(nids))]
         nid_add = nids[np.random.randint(len(genom1.nids_input), len(nids))]
@@ -282,7 +281,7 @@ class Genom:
 
         if len(structure[nid_dis]["connections"]["snids"]) > 1:
             idx = np.random.randint(0, len(structure[nid_dis]["connections"]["snids"]))
-            structure[nid_dis]["connections"]["active"][idx] = 0
+            structure[nid_dis]["connections"]["active"][idx] = 0 if structure[nid_dis]["connections"]["active"][idx] == 1 else 1
 
             return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
                        maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_remove_connection'], _id=genom1._id,
@@ -296,59 +295,60 @@ class Genom:
         nids = genom1.nids.copy()
         structure = copy.deepcopy(genom1.structure)
 
-        ### get rnid index ### 
-        while True:
-            if len(genom1.nids_input+genom1.nids_output) == len(genom1.nids):
-                idx = len(genom1.nids_input)
-                rnid = genom1.nids[idx]
-                nid_new = len(genom1.nids)
+        ### get rnid index ###
+        nid_new = 0
+        while nid_new in nids:
+            idx = np.random.randint(len(genom1.nids_input),len(genom1.nids))
+            nid0, nid1 = genom1.nids[idx-1], genom1.nids[idx]
+            nid_name = "{}-{}".format(nid0,nid1)
+            if nid_name in list(NODES.keys()):
+                nid_new = NODES[nid_name]
             else:
-                idx = np.random.randint(len(genom1.nids_input),len(genom1.nids)-len(genom1.nids_output))
-                rnid = genom1.nids[idx]
-                nid_new = rnid+1
-            
-            if not nid_new in genom1.nids:
-                break
+                nid_new = max(genom1.nids)
+                while nid_new in genom1.nids + [nid for key, nid in NODES.items()]:
+                    nid_new +=1
+                NODES[nid_name] = nid_new
 
         ### Inserting new nid ###
-        nids.insert(idx, nid_new)
+        nids.insert(min([idx,len(genom1.nids)-len(genom1.nids_output)]), nid_new)
         structure[nid_new] = {"connections": {"snids":[], "innovations":[], "level":[], "weights":[], "active":[]}, "bias":0.0, "activation": 1}
 
-        ### Link it ###
-        if len(genom1.structure[rnid]["connections"]["snids"])>0:
-            snid_idx = np.random.randint(0, len(genom1.structure[rnid]["connections"]["snids"]))
-            snid = genom1.structure[rnid]["connections"]["snids"][snid_idx]
-            weight = genom1.structure[rnid]["connections"]["weights"][snid_idx]
-            level = genom1.structure[rnid]["connections"]["level"][snid_idx]
-            ino  = genom1.structure[rnid]["connections"]["innovations"][snid_idx]
-            active = genom1.structure[rnid]["connections"]["active"][snid_idx]
+        ### Replace connection with node ###
+        if len(genom1.structure[nid1]["connections"]["snids"])>0:
+            snid_idx = np.random.randint(0, len(genom1.structure[nid1]["connections"]["snids"]))
+            snid = genom1.structure[nid1]["connections"]["snids"][snid_idx]
+            weight = genom1.structure[nid1]["connections"]["weights"][snid_idx]
+            level = genom1.structure[nid1]["connections"]["level"][snid_idx]
+            ino  = genom1.structure[nid1]["connections"]["innovations"][snid_idx]
+            active = genom1.structure[nid1]["connections"]["active"][snid_idx]
+            ### Deactivate original connection ###
+            structure[nid1]["connections"]["active"][snid_idx] = 0
 
-            ### Remove original connection ###
-            structure[rnid]["connections"]["snids"].pop(snid_idx)
-            structure[rnid]["connections"]["level"].pop(snid_idx)
-            structure[rnid]["connections"]["weights"].pop(snid_idx)
-            structure[rnid]["connections"]["innovations"].pop(snid_idx)
-            structure[rnid]["connections"]["active"].pop(snid_idx)
-
-            ### Add link to new node ###
-            structure[nid_new]["connections"]["snids"].append(snid)
-            structure[nid_new]["connections"]["level"].append(level)
-            structure[nid_new]["connections"]["weights"].append(1.0)
-            structure[nid_new]["connections"]["innovations"].append(Genom._addInnovation(snid, nid_new, level))
-            structure[nid_new]["connections"]["active"].append(1.0)
-
-            ### Add link to rnid ###
-            structure[rnid]["connections"]["snids"].append(nid_new)
-            structure[rnid]["connections"]["level"].append(level)
-            structure[rnid]["connections"]["weights"].append(weight)
-            structure[rnid]["connections"]["active"].append(1.0)
-            structure[rnid]["connections"]["innovations"].append(Genom._addInnovation(nid_new, rnid, level))
-
-            return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
-                       maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_add_node'], _id=genom1._id,
-                       iter_survived=genom1.iter_survived, crossover=genom1.crossover)
+        ### Add new node ###
         else:
-            return genom1
+            weight = np.random.normal()
+            level = np.random.randint(0, genom1.maxtimelevel)
+            activation = 1
+            snid = nids[:nids.index(nid_new)][0]
+            
+        ### Add link to new node ###
+        structure[nid_new]["connections"]["snids"].append(snid)
+        structure[nid_new]["connections"]["level"].append(level)
+        structure[nid_new]["connections"]["weights"].append(1.0)
+        structure[nid_new]["connections"]["innovations"].append(Genom._addInnovation(snid, nid_new, level))
+        structure[nid_new]["connections"]["active"].append(1.0)
+
+        ### Add link to rnid ###
+        structure[nid1]["connections"]["snids"].append(nid_new)
+        structure[nid1]["connections"]["level"].append(level)
+        structure[nid1]["connections"]["weights"].append(weight)
+        structure[nid1]["connections"]["active"].append(1.0)
+        structure[nid1]["connections"]["innovations"].append(Genom._addInnovation(nid_new, nid1, level))
+
+        return cls(nids=nids, structure=structure, nids_output=genom1.nids_output, nids_input=genom1.nids_input,
+                   maxtimelevel=genom1.maxtimelevel, generation=generation, parents=[genom1._id, 'mutate_add_node'], _id=genom1._id,
+                   iter_survived=genom1.iter_survived, crossover=genom1.crossover)
+
 
     ### Remove node ###
     @classmethod
@@ -404,28 +404,36 @@ class Genom:
 
         excess = [ino for ino in n1 if ino>max(cn,default=0)] 
         disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn] + [ino for ino in n2 if ino<max(cn,default=0) and not ino in cn]
-
         n3 = cn + excess + disjoint
 
-
         ### Get NIDS ###
-        nids_remaining = []
-        for ino in n3:
-            snid, rnid, level = Genom._getFeatures(ino)
-            if not snid in genom1.nids_input+genom1.nids_output and not snid in nids_remaining:
-                nids_remaining.append(snid)
-            if not rnid in genom1.nids_input+genom1.nids_output and not rnid in nids_remaining:
-                nids_remaining.append(rnid)
+        cnids = list(set(genom1.nids) & set(genom2.nids))
+        allnids = list(set(genom1.nids+genom2.nids)) 
+        cnids = [cnids[idx] for idx in sorted(range(len([genom1.nids.index(nid) for nid in cnids])), key=[genom1.nids.index(nid) for nid in cnids].__getitem__)] 
 
-        nids = genom1.nids_input.copy() + sorted(nids_remaining)[::-1] + genom1.nids_output.copy()
+        nids = cnids.copy()
+        for genom in [genom1, genom2]:
+            for nid in genom.nids:
+                if nid in cnids:
+                    continue
+
+                for cnid in cnids:
+                    cidx = genom.nids.index(cnid)
+                    idx = genom.nids.index(nid)
+                    if cidx > idx:
+                        idx_insert = nids.index(cnid)
+                        nids.insert(idx_insert, nid)
+                        break
+
 
         ### add nids from innovation number
-        structure = {nid: genom1.structure[nid] for nid in genom1.nids_input}
-        for nid in nids_remaining:
-            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": [], "active":[]},'activation': 0, 'bias': 0.0}
-        for nid in genom1.nids_output:
-            structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": [], "active":[]},'activation': genom1.structure[nid]['activation'], 'bias': 0.0} 
-
+        structure = {}
+        for nid in nids:
+            if nid in genom1.nids_output+genom1.nids_input:
+                structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": [], "active":[]},'activation': genom1.structure[nid]['activation'], 'bias': 0.0} 
+            else:
+                structure[nid] = {'connections':{"snids":[], "weights":[], "level":[], "innovations": [], "active":[]},'activation': 0, 'bias': 0.0}
+            
         ### Add connections ###
         for ino in n3:
             snid, rnid, level = Genom._getFeatures(ino)
@@ -460,7 +468,6 @@ class Genom:
             structure[rnid]['connections']['active'].append(active)
             structure[rnid]['bias'] = bias
             structure[rnid]['activation'] = activation
-
 
         if not len(nids) == len(structure):
             print(list(structure.keys()))
@@ -511,17 +518,19 @@ class Genom:
             y.append(-0.5*executionLevel.count(l) + executionLevel[i:].count(l)+0.1-0.2*np.random.rand())
 
         for nid_index, nid in enumerate(self.nids):
-            for snid, weight, level in zip(self.structure[nid]["connections"]["snids"],
+            for active, snid, weight, level in zip(self.structure[nid]["connections"]["active"], self.structure[nid]["connections"]["snids"],
                 self.structure[nid]["connections"]["weights"], self.structure[nid]["connections"]["level"]):
                 snid_index = self.nids.index(snid)
                 color = "r" if weight>0 else "b"
                 style = "-" if level == 0 else "--"
-                plt.plot([executionLevel[snid_index], executionLevel[nid_index]], [y[snid_index], y[nid_index]], ls=style, color=color)
+                lw = np.clip(active*weight, -3,3)
+                plt.plot([executionLevel[snid_index], executionLevel[nid_index]], [y[snid_index], y[nid_index]], ls=style, color=color, lw=lw)
    
         for nid_index, nid in enumerate(self.nids):
             plt.plot(executionLevel[nid_index], y[nid_index], 'o', color=colors[self.structure[nid]["activation"]], markersize=12)
             if showLabels:
                 plt.text(executionLevel[nid_index], y[nid_index], nid, ha='center', va='center', color="w")
+
         plt.title("{}".format(self))
         plt.axis('off')
         if store:
@@ -534,61 +543,25 @@ class Genom:
 #### TEST #######
 if __name__ == "__main__":
 
-    npop =10
+    npop = 2
     genoms = [Genom.initializeRandomly(ninputs=2, noutputs=2, maxtimelevel=1) for pop in range(npop)]
 
-    for _ in range(100):
-        X = np.random.rand(10,2)
+    g1, g2 = genoms[0], genoms[1]
+    g3,g4 = g1,g2
 
-        genoms_run = (genom.run(X) for genom in genoms)
+    for _ in range(2):
+        g3 = Genom.mutate_add_node(g3)
 
-        for run in genoms_run:
-            run
-
-        for genom1 in genoms:
-            for genom2 in genoms:
-                sigma = Genom.compabilityMeasure(genom1, genom2)
-                print(sigma)
-        sys.exit(9)
+    for _ in range(3):
+        g4 = Genom.mutate_add_node(g4)
 
 
-        for n in range(npop):
+    for _ in range(7):
+        g3, g4 = Genom.mutate_add_connection(g3), Genom.mutate_add_connection(g4)
+              
+    g5 = Genom.crossover(g3,g4) 
+   # g4 = Genom.mutate_add_node(g2)
 
-            genoms[n] = Genom.crossover(genoms[np.random.randint(0,npop)], genoms[np.random.randint(0,npop)])
-
-            if np.random.rand() < 0.02:
-                genoms[n] = Genom.mutate_add_node(genoms[n])
-            if np.random.rand() < 0.05:
-                genoms[n] = Genom.mutate_remove_node(genoms[n])
-            if np.random.rand() < 0.5:
-                genoms[n] = Genom.mutate_add_connection(genoms[n])
-            if np.random.rand() < 0.1:
-                genoms[n] = Genom.mutate_remove_connection(genoms[n])
-            if np.random.rand() < 0.5:
-                genoms[n] = Genom.mutate_weight(genoms[n])
-            if np.random.rand() < 0.5:
-                genoms[n] = Genom.mutate_bias(genoms[n])
-            if np.random.rand() < 0.5:
-                genoms[n] = Genom.mutate_activation(genoms[n])
-
-    for genom in genoms:
-        genom.showGraph()
-        print(genom.cost())
-    # genom6 = initializeRandomly()
-
-    # genom3 = Genom.crossover(genom1, genom2)
-    # genom4 = Genom.mutate_add_node(genom1)
-    # genom5 = Genom.mutate_remove_node(genom4)
-    # genom6 = Genom.crossover(genom4, genom5)
-    # genom5 = Genom.mutate_add_connection(genom5)
-    # genom3 = Genom.mutate_remove_connection(genom3)
-
-    # genom4.showGraph()
-    # genom5.showGraph()
-    # #
-
-    # for _ in range(1):
-    #     print("####", _ ,"####")
-    #     X = np.random.rand(10,2)
-    #     y = genom5.run(X)
-    #     print(y)
+    g3.showGraph()
+    g4.showGraph()
+    g5.showGraph()
