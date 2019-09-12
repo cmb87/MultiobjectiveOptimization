@@ -237,7 +237,7 @@ class Genom:
 
     ### Add connection ###
     @classmethod
-    def mutate_add_connection(cls, genom1, valueabs=1, pbigChange=0.1, maxretries=1, generation=None, timelevel=None):
+    def mutate_add_connection(cls, genom1, valueabs=1, pbigChange=0.1, maxretries=30, generation=None, timelevel=None):
         nids = genom1.nids.copy()
         structure = copy.deepcopy(genom1.structure)
         timelevel = genom1.maxtimelevel if timelevel is None else timelevel
@@ -249,7 +249,7 @@ class Genom:
 
         ### Find a valid SNID ###
         for _ in range(maxretries):
-            snid = nids[np.random.randint(0, nids.index(nid_add))] if level == 0 else nids[np.random.randint(0, nids.index(nid_add))]
+            snid = nids[np.random.randint(0, nids.index(nid_add))] if level == 0 else nids[np.random.randint(0, len(nids))]
             if not snid in structure[nid_add]["connections"]["snids"] and not snid in genom1.nids_output:
                 break
             elif snid == nid_add and level >0:

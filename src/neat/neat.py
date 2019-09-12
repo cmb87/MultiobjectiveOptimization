@@ -99,7 +99,6 @@ class NEAT:
                     specie["best_fitness"], specie["best_fitness_gen"] = f[0], generation
                     specie["best_genom"] = copy.copy(specie["genomes"][0])
                     specie["reproduce"] = True
-
                 elif (generation-specie["best_fitness_gen"]) > maxsurvive:
                     ### No improvement since Nextinguish generation ###
                     specie["best_fitness_gen"], specie["reproduce"], specie["noffspring"] = generation, False, -1e+3
@@ -172,7 +171,7 @@ def bestfit(genom):
 
 
 # ### Simulation environment for neat ###
-def pendulum(genom, timesteps=200, render=False, repeat=60):
+def pendulum(genom, timesteps=200, render=False, repeat=50):
     env = gym.make("Pendulum-v0")
     ep_reward = 0
     ylb, yub = np.asarray([-2.0]), np.asarray([2.0])
@@ -192,8 +191,7 @@ def pendulum(genom, timesteps=200, render=False, repeat=60):
             ep_reward += r
             s = s2
             ### plotting and stopping ###
-            if done:
-                break
+
             if render:
                 env.render()
 
@@ -312,7 +310,7 @@ if __name__ == "__main__":
                 neat.run(specie["best_genom"], render=True)
                 specie["genomes"][0].showGraph()
 
-    elif True:
+    elif False:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
         
@@ -321,7 +319,7 @@ if __name__ == "__main__":
         neat = NEAT(xdim=3, ydim=1, npop=50, maxtimelevel=1, output_activation=[2])
         neat.initialize()
         neat.run = pendulum
-        neat.iterate(30, sigmat=4.0, keepratio=0.1, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.2, prmCon=0.1, pmutW=0.8)
+        neat.iterate(20, sigmat=2.5, keepratio=0.1, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.2, prmCon=0.1, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
@@ -349,7 +347,7 @@ if __name__ == "__main__":
         neat = NEAT(xdim=1, ydim=1, npop=100, maxtimelevel=1, output_activation=[0])
         neat.run = bestfit
         neat.initialize()
-        neat.iterate(15, sigmat=2.5, keepratio=0.1, maxsurvive=5, paddNode=0.15, prmNode=0.05, paddCon=0.47, prmCon=0.1, pmutW=0.8)
+        neat.iterate(11, sigmat=2.5, keepratio=0.4, maxsurvive=15, paddNode=0.05, prmNode=0.05, paddCon=0.47, prmCon=0.1, pmutW=0.8)
 
 
         for specieID, specie in neat.species.items():
@@ -358,7 +356,7 @@ if __name__ == "__main__":
             if len(specie["genomes"])>0:
                 xnorm = (x-4)
                 yhat = specie["best_genom"].run(xnorm)
-
+                print(specie["best_genom"])
                 specie["best_genom"].showGraph()
                 plt.plot(x, yhat,'ro-')
                 plt.plot(x, y,'bo-')
