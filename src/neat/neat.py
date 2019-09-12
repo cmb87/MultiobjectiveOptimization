@@ -171,7 +171,7 @@ def bestfit(genom):
 
 
 # ### Simulation environment for neat ###
-def pendulum(genom, timesteps=200, render=False, repeat=50):
+def pendulum(genom, timesteps=220, render=False, repeat=50):
     env = gym.make("Pendulum-v0")
     ep_reward = 0
     ylb, yub = np.asarray([-2.0]), np.asarray([2.0])
@@ -310,16 +310,16 @@ if __name__ == "__main__":
                 neat.run(specie["best_genom"], render=True)
                 specie["genomes"][0].showGraph()
 
-    elif False:
+    elif True:
         ### Use gym as test environment ###
         # ### Simulation environment for neat ###
         
 
         ### NEAT ###
-        neat = NEAT(xdim=3, ydim=1, npop=50, maxtimelevel=1, output_activation=[2])
+        neat = NEAT(xdim=3, ydim=1, npop=100, maxtimelevel=1, output_activation=[2])
         neat.initialize()
         neat.run = pendulum
-        neat.iterate(20, sigmat=2.5, keepratio=0.1, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.2, prmCon=0.1, pmutW=0.8)
+        neat.iterate(25, sigmat=2.5, keepratio=0.3, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.2, prmCon=0.1, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
