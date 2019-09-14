@@ -163,7 +163,7 @@ def bestfit(genom):
     x = np.linspace(0,8,20).reshape(-1,1)
     y = 0.5*(np.sin(x)+1)
 
-    xnorm = (x-4)
+    xnorm = 0.1*(x-4)
     yhat = genom.run(xnorm)
     rmse = np.mean((y-yhat)**2)
 
@@ -171,7 +171,7 @@ def bestfit(genom):
 
 
 # ### Simulation environment for neat ###
-def pendulum(genom, timesteps=220, render=False, repeat=50):
+def pendulum(genom, timesteps=250, render=False, repeat=50):
     env = gym.make("Pendulum-v0")
     ep_reward = 0
     ylb, yub = np.asarray([-2.0]), np.asarray([2.0])
@@ -316,10 +316,10 @@ if __name__ == "__main__":
         
 
         ### NEAT ###
-        neat = NEAT(xdim=3, ydim=1, npop=100, maxtimelevel=1, output_activation=[2])
+        neat = NEAT(xdim=3, ydim=1, npop=60, maxtimelevel=1, output_activation=[2])
         neat.initialize()
         neat.run = pendulum
-        neat.iterate(25, sigmat=2.5, keepratio=0.3, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.2, prmCon=0.1, pmutW=0.8)
+        neat.iterate(12, sigmat=2.5, keepratio=0.1, maxsurvive=150, paddNode=0.08, prmNode=0.05, paddCon=0.2, prmCon=0.1, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
@@ -347,14 +347,15 @@ if __name__ == "__main__":
         neat = NEAT(xdim=1, ydim=1, npop=100, maxtimelevel=1, output_activation=[0])
         neat.run = bestfit
         neat.initialize()
-        neat.iterate(11, sigmat=2.5, keepratio=0.4, maxsurvive=15, paddNode=0.05, prmNode=0.05, paddCon=0.47, prmCon=0.1, pmutW=0.8)
+        neat.iterate(80, sigmat=4.0, keepratio=0.2, maxsurvive=150, paddNode=0.05, prmNode=0.05, paddCon=0.1, prmCon=0.1, pmutW=0.8)
+
 
 
         for specieID, specie in neat.species.items():
             x = np.linspace(0,8,20).reshape(20,1)
             y = 0.5*(np.sin(x)+1)
             if len(specie["genomes"])>0:
-                xnorm = (x-4)
+                xnorm = 0.1*(x-4)
                 yhat = specie["best_genom"].run(xnorm)
                 print(specie["best_genom"])
                 specie["best_genom"].showGraph()
