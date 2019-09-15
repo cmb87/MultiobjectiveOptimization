@@ -92,6 +92,7 @@ class NEAT:
                 specie["genomes"] = specie["genomes"][:ikill]
                 specie["fitness_adjusted"] = fadj[:ikill].tolist()
                 specie["noffspring"] = np.mean(fadj[:ikill]) if specie["reproduce"] else -1e+3
+                specie["genome_prototype"] = copy.copy(specie["genomes"][0])
 
                 ### Check if specie has gotten better ###
                 if f[0] > specie["best_fitness"]:
@@ -141,18 +142,19 @@ class NEAT:
                     genom = specie["genomes"][idxs[0]]
 
                 ### Mutations ###
-                if np.random.rand() < paddNode:
-                    genom = Genom.mutate_add_node(genom, generation=generation)
-                if np.random.rand() < prmNode:
-                    genom = Genom.mutate_remove_node(genom, generation=generation)
-                if np.random.rand() < paddCon:
-                    genom = Genom.mutate_add_connection(genom, generation=generation)
-                if np.random.rand() <prmCon:
-                    genom = Genom.mutate_remove_connection(genom, generation=generation)
-                if np.random.rand() < pmutW:
-                    genom = Genom.mutate_weight(genom, generation=generation)
-                if np.random.rand() < pmutW:
-                    genom = Genom.mutate_bias(genom, generation=generation)
+                for _ in range(1):
+                    if np.random.rand() < paddNode:
+                        genom = Genom.mutate_add_node(genom, generation=generation)
+                    if np.random.rand() < prmNode:
+                        genom = Genom.mutate_remove_node(genom, generation=generation)
+                    if np.random.rand() < paddCon:
+                        genom = Genom.mutate_add_connection(genom, generation=generation)
+                    if np.random.rand() <prmCon:
+                        genom = Genom.mutate_remove_connection(genom, generation=generation)
+                    if np.random.rand() < pmutW:
+                        genom = Genom.mutate_weight(genom, generation=generation)
+                    if np.random.rand() < 0.1*pmutW:
+                        pass #genom = Genom.mutate_bias(genom, generation=generation)
 
                 ### Finally append it ###
                 self.genomes.append(genom)
@@ -171,18 +173,21 @@ def bestfit(genom):
 
 
 # ### Simulation environment for neat ###
-def pendulum(genom, timesteps=250, render=False, repeat=50):
+def pendulum(genom, timesteps=350, render=False, seeds=[42,1337,87]):
     env = gym.make("Pendulum-v0")
     ep_reward = 0
     ylb, yub = np.asarray([-2.0]), np.asarray([2.0])
     xlb, xub = np.asarray([-1,-1,-8]), np.asarray([ 1, 1, 8])
+    
     #print("Running genom {}".format(genom))
-    for _ in range(repeat):
+    for _, seed in enumerate(seeds):
+        env.seed(seed)
         s = env.reset()
         for t in range(timesteps):
 
             ### Run single genomes ###
-            s_norm = (np.asarray(s).reshape(1,-1)-xlb)/(xub-xlb)
+            s_norm = -1+2*(np.asarray(s).reshape(1,-1)-xlb)/(xub-xlb)
+            s_norm = np.hstack((s_norm,np.ones((1,1))))
             a_norm = genom.run(s_norm)
             a = yub*a_norm.reshape(-1)
 
@@ -195,7 +200,7 @@ def pendulum(genom, timesteps=250, render=False, repeat=50):
             if render:
                 env.render()
 
-    return 10+ep_reward/repeat/timesteps
+    return 10+ep_reward/len(seeds)/timesteps
 
 def cartPoleNonMarkovian(genom, timesteps=400, render=False, repeat=15):
     ep_reward = 0
@@ -316,15 +321,16 @@ if __name__ == "__main__":
         
 
         ### NEAT ###
-        neat = NEAT(xdim=3, ydim=1, npop=60, maxtimelevel=1, output_activation=[2])
+        neat = NEAT(xdim=4, ydim=1, npop=100, maxtimelevel=1, output_activation=[2])
         neat.initialize()
+
         neat.run = pendulum
-        neat.iterate(12, sigmat=2.5, keepratio=0.1, maxsurvive=150, paddNode=0.08, prmNode=0.05, paddCon=0.2, prmCon=0.1, pmutW=0.8)
+        neat.iterate(20, sigmat=1.8, keepratio=0.5, maxsurvive=150, paddNode=0.05, prmNode=0.05, paddCon=0.05, prmCon=0.05, pmutW=0.8)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
                 specie["best_genom"].showGraph()
-                neat.run(specie["best_genom"], render=True)
+                #neat.run(specie["best_genom"], render=True)
                 
     elif False:
         ### Use gym as test environment ###

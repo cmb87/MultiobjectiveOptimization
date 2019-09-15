@@ -146,7 +146,7 @@ class Genom:
     ### ======================================
     ### Create random structure ###
     @classmethod
-    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.02, paddbias=0.5, pmutact=0.0, nrerun=None, output_activation=None):
+    def initializeRandomly(cls, ninputs, noutputs, maxtimelevel=2, paddcon=0.8, paddnode=0.00, paddbias=0.01, pmutact=0.0, nrerun=None, output_activation=None):
         global GENOMCTR
         nids_input, nids_output = [x for x in range(0,ninputs)], [x for x in range(ninputs ,ninputs+noutputs)]
         nids = nids_input+nids_output
@@ -169,7 +169,7 @@ class Genom:
             if np.random.rand() < paddcon:
                 genom = Genom.mutate_add_connection(genom)
             if np.random.rand() < paddbias:
-                genom = Genom.mutate_bias(genom)
+                pass #genom = Genom.mutate_bias(genom)
             if np.random.rand() < paddnode:
                 genom = Genom.mutate_add_node(genom)
             if np.random.rand() < pmutact:
@@ -491,7 +491,7 @@ class Genom:
     # Calculate compability
     ### =====================================
     @staticmethod
-    def compabilityMeasure(genom1, genom2, c1=1.0, c2=1.0, c3=0.3):
+    def compabilityMeasure(genom1, genom2, c1=1.0, c2=1.0, c3=0.2):
         ncons1 = max([genom1.numberOfConnections,1])
         ncons2 = max([genom2.numberOfConnections,1])
         nsumw1 = genom1.sumOfWeightsAndBiases
@@ -528,9 +528,12 @@ class Genom:
             for active, snid, weight, level in zip(self.structure[nid]["connections"]["active"], self.structure[nid]["connections"]["snids"],
                 self.structure[nid]["connections"]["weights"], self.structure[nid]["connections"]["level"]):
                 snid_index = self.nids.index(snid)
-                color = "r" if weight>0 else "b"
+                if active == 1:
+                    color = "r" if weight>0 else "b"
+                else:
+                    color = "gray"
                 style = "-" if level == 0 else "--"
-                lw = np.clip(active*weight, -3,3)
+                lw = np.clip(weight, -3,3)
                 plt.plot([executionLevel[snid_index], executionLevel[nid_index]], [y[snid_index], y[nid_index]], ls=style, color=color, lw=lw)
    
         for nid_index, nid in enumerate(self.nids):
