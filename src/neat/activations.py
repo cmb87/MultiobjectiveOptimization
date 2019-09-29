@@ -15,4 +15,4 @@ def tanh(x):
     return np.tanh(x)
 
 
-ACTIVATIONS = [identity, relu, tanh]
+ACTIVATIONS = [identity, tanh, tanh]

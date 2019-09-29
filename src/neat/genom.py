@@ -90,10 +90,125 @@ class Genom:
         return [vals for key, vals in INNOVATIONS.items() if vals["id"] == ino][0]["feats"]
 
     ### ======================================
+    # Travesere Back ###
+    ### ======================================
+    def traverse_postorder(self, outputnode, alreadyrun=[]):
+        nodes_postorder = []
+
+        def recurse(node):
+            if node in alreadyrun:
+                return
+            for snid in self.structure[node]["connections"]["snids"]:
+                recurse(snid)
+
+            nodes_postorder.append(node)
+            alreadyrun.append(node)
+
+        recurse(outputnode)
+        return nodes_postorder
+
+    ### ======================================
     # Feedforward run
     ### ======================================
     ### Make a forward prediction ###
     def run(self, X):
+
+        ### Check input ###
+        assert X.shape[1] == len(self.nids_input_index), "Input nodes must match dimesion of X!"
+
+        ### Initialize node states ###
+        node_states = np.zeros((X.shape[0], len(self.nids), self.maxtimelevel+1))
+
+        ### Initialiaze previous node state for recurrent connections ###
+        if len(self.last_states)>0:
+            for t, last_state in enumerate(self.last_states):
+                node_states[:,:,t+1] = last_state
+
+        ### Assign values to input nodes ###
+        node_states[:,self.nids_input_index, 0] = X
+
+        ### Forward propagation ###
+        for nid_index in range(len(self.nids_input), len(self.nids)):
+            nid = self.nids[nid_index]
+            snids  = self.structure[nid]["connections"]["snids"]
+            weights  = self.structure[nid]["connections"]["weights"]
+            active = self.structure[nid]["connections"]["active"]
+            level = self.structure[nid]["connections"]["level"] # The time level of the connection
+
+            bias = self.structure[nid]["bias"]
+            fct = ACTIVATIONS[self.structure[nid]["activation"]]
+
+            assert all(snid in self.nids for snid in snids), "Snid not in nid: {}, {}, {}".format(self.nids, self.structure, self.parents)
+            snids_index = [self.nids.index(snid) for snid in snids]
+
+            ### Calculate node state value ###
+            if len(snids) > 0:
+                #assert nid_index>max([snid for l, snid in zip(level, snids_index) if l == 0], default=0), "Network is not feedforward! nids: {}, structure:{}, parents {}".format(self.nids, self.structure, self.parents)
+                node_states[:,nid_index, 0] += fct(np.sum(np.asarray(weights)* np.asarray(active)* node_states[:, snids_index, level], axis=1) + bias)
+
+            ### The node seems not to have any input ###
+            else:
+                continue
+
+        #print(node_states[:,:,0])
+        ### Store node state (for recurrent connections) ###
+        self.last_states.insert(0, node_states[:,:,0].copy())
+        self.last_states = self.last_states[:self.maxtimelevel]
+
+        ### Return output nodes values ###
+        return node_states[:,self.nids_output_index, 0].reshape(X.shape[0],len(self.nids_output_index))
+
+        ### Check input ###
+        assert X.shape[1] == len(self.nids_input_index), "Input nodes must match dimesion of X!"
+
+        ### Initialize node states ###
+        node_states = np.zeros((X.shape[0], len(self.structure), self.maxtimelevel+1))
+        nids = sorted(list(self.structure.keys()))
+
+        ### Initialiaze previous node state for recurrent connections ###
+        if len(self.last_states)>0:
+            for t, last_state in enumerate(self.last_states):
+                node_states[:,:,t+1] = last_state
+
+        ### Assign values to input nodes ###
+        node_states[:,[nids.index(nid) for nid in self.nids_input], 0] = X
+
+        ### Go through graph ###
+        alreadyrun = self.nids_input.copy()
+        for nid_output in self.nids_output:
+
+            for nid in self.traverse_postorder(nid_output, alreadyrun):
+
+                snid_index = [nids.index(snid) for snid in self.structure[nid]["connections"]["snids"]]
+                weights  = self.structure[nid]["connections"]["weights"]
+                active = self.structure[nid]["connections"]["active"]
+                level = self.structure[nid]["connections"]["level"] # The time level of the connection
+
+                bias = self.structure[nid]["bias"]
+                fct = ACTIVATIONS[self.structure[nid]["activation"]]
+
+                ### Calculate node state value ###
+                if len(snid_index) > 0:
+                    #assert nid_index>max([snid for l, snid in zip(level, snids_index) if l == 0], default=0), "Network is not feedforward! nids: {}, structure:{}, parents {}".format(self.nids, self.structure, self.parents)
+                    node_states[:,nids.index(nid), 0] += fct(np.sum(np.asarray(weights)* np.asarray(active)* node_states[:, snids_index, level], axis=1) + bias)
+
+                ### The node seems not to have any input ###
+                else:
+                    continue
+
+        #print(node_states[:,:,0])
+        ### Store node state (for recurrent connections) ###
+        self.last_states.insert(0, node_states[:,:,0].copy())
+        self.last_states = self.last_states[:self.maxtimelevel]
+
+        ### Return output nodes values ###
+        return node_states[:,self.nids_output_index, 0].reshape(X.shape[0],len(self.nids_output_index))
+
+    ### ======================================
+    # Feedforward run
+    ### ======================================
+    ### Make a forward prediction ###
+    def runOLD(self, X):
 
         ### Check input ###
         assert X.shape[1] == len(self.nids_input_index), "Input nodes must match dimesion of X!"
@@ -404,7 +519,7 @@ class Genom:
         cn = list(set(n1) & set(n2))
 
         excess = [ino for ino in n1 if ino>max(cn,default=0)] 
-        disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn] + [ino for ino in n2 if ino<max(cn,default=0) and not ino in cn]
+        disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn]
         n3 = cn + excess + disjoint
 
         ### Get NIDS ###
@@ -502,7 +617,7 @@ class Genom:
 
         excess = [ino for ino in n1 if ino>max(cn,default=0)] + [ino for ino in n2 if ino>max(cn,default=0)]
         disjoint = [ino for ino in n1 if ino<max(cn,default=0) and not ino in cn] + [ino for ino in n2 if ino<max(cn,default=0) and not ino in cn]
-        N = max([len(n1),len(n2),1])
+        N =  max([len(n1),len(n2),1])
 
         return c1*len(excess)/N + c2*len(disjoint)/N + c3*abs(nsumw1/ncons1-nsumw2/ncons2)
 
@@ -557,14 +672,13 @@ if __name__ == "__main__":
     genoms = [Genom.initializeRandomly(ninputs=2, noutputs=2, maxtimelevel=1) for pop in range(npop)]
 
     g1, g2 = genoms[0], genoms[1]
-    g3,g4 = g1,g2
+    g3, g4 = g1,g2
 
-    for _ in range(2):
+    for _ in range(8):
         g3 = Genom.mutate_add_node(g3)
 
-    for _ in range(3):
+    for _ in range(4):
         g4 = Genom.mutate_add_node(g4)
-
 
     for _ in range(7):
         g3, g4 = Genom.mutate_add_connection(g3), Genom.mutate_add_connection(g4)
@@ -572,15 +686,13 @@ if __name__ == "__main__":
     for _ in range(1):
         g3, g4 = Genom.mutate_remove_node(g3), Genom.mutate_remove_node(g4)
 
-
     g5 = Genom.crossover(g3,g4) 
    # g4 = Genom.mutate_add_node(g2)
 
+    alreadyrun = g5.nids_input.copy()
+    for nid in g5.nids_output:
+        print(g5.traverse_postorder(nid,alreadyrun))
 
-    sigma = Genom.compabilityMeasure(g1, g4)
-    print(sigma)
-
-
-   # g3.showGraph()
-   # g4.showGraph()
-   # g5.showGraph()
+    # g3.showGraph()
+    # g4.showGraph()
+    g5.showGraph()

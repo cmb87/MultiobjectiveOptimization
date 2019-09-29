@@ -193,6 +193,10 @@ def pendulum(genom, timesteps=350, render=False, seeds=[42,1337,87]):
 
             ### Run simulation environment ###
             s2, r, done, info = env.step(a)
+
+
+            r = s2[0] if s2[0]<0.7 else 3*s2[0]
+
             ep_reward += r
             s = s2
             ### plotting and stopping ###
@@ -202,32 +206,6 @@ def pendulum(genom, timesteps=350, render=False, seeds=[42,1337,87]):
 
     return 10+ep_reward/len(seeds)/timesteps
 
-def cartPoleNonMarkovian(genom, timesteps=400, render=False, repeat=15):
-    ep_reward = 0
-    env = gym.make("CartPole-v0")
-    for _ in range(repeat):
-        s = env.reset()
-        for t in range(timesteps):
-
-            ### Run single genomes ###
-            #logits = genom.run(s.reshape(1,-1)).reshape(-1)
-            #probs = np.exp(logits) / np.sum(np.exp(logits))
-            #a = np.random.choice([0, 1], 1, p=probs)[0]
-
-            logits = genom.run(s[[0,2]].reshape(1,-1)).reshape(-1)
-            probs = np.exp(logits) / np.sum(np.exp(logits))
-            a = np.random.choice([0, 1], 1, p=probs)[0]
-            ### Run simulation environment ###
-            s2, r, done, info = env.step(a)
-            ep_reward += r
-            s = s2
-            ### plotting and stopping ###
-            if done:
-                break
-            if render:
-                env.render()
-
-    return ep_reward/repeat
 
 def cartPole(genom, timesteps=400, render=False, repeat=15):
     ep_reward = 0
@@ -300,20 +278,6 @@ if __name__ == "__main__":
                 neat.run(specie["best_genom"], render=True)
                 specie["genomes"][0].showGraph()
 
-    elif False:
-        ### Use gym as test environment ###
-        # ### Simulation environment for neat ###
-        
-        ### NEAT ###
-        neat = NEAT(xdim=2, ydim=2, npop=100, maxtimelevel=2, output_activation=[0,0])
-        neat.initialize()
-        neat.run = cartPoleNonMarkovian
-        neat.iterate(55, sigmat=2.5, keepratio=0.3, maxsurvive=15, paddNode=0.1, prmNode=0.1, paddCon=0.37, prmCon=0.04, pmutW=0.8)
-
-        for specieID, specie in neat.species.items():
-            if len(specie["genomes"])>0:
-                neat.run(specie["best_genom"], render=True)
-                specie["genomes"][0].showGraph()
 
     elif True:
         ### Use gym as test environment ###
@@ -325,12 +289,13 @@ if __name__ == "__main__":
         neat.initialize()
 
         neat.run = pendulum
-        neat.iterate(20, sigmat=1.8, keepratio=0.5, maxsurvive=150, paddNode=0.05, prmNode=0.05, paddCon=0.05, prmCon=0.05, pmutW=0.8)
+        neat.iterate(20, sigmat=1.0, keepratio=0.5, maxsurvive=500, paddNode=0.09, prmNode=0.08, paddCon=0.10, prmCon=0.10, pmutW=0.8, pcrossover=0.75)
 
         for specieID, specie in neat.species.items():
             if len(specie["genomes"])>0:
                 specie["best_genom"].showGraph()
-                #neat.run(specie["best_genom"], render=True)
+                print(specie["best_genom"].structure)
+                neat.run(specie["best_genom"], render=True)
                 
     elif False:
         ### Use gym as test environment ###
