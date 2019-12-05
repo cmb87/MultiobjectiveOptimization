@@ -8,7 +8,7 @@ from src.pipeline.operations import Operation
 from src.pipeline.placeholders import Placeholder
 from src.pipeline.variables import Variable
 
-if False:
+if True:
     np.random.seed(42)
 
     ### Special class for single processes ###
@@ -74,7 +74,6 @@ else:
     graph.addConnectionToGraph("0","1", snid_con=0, rnid_con=0)
     graph.addConnectionToGraph("1","2", snid_con=0, rnid_con=0)
     graph.addConnectionToGraph("1","3", snid_con=1, rnid_con=0)
-
     graph.addConnectionToGraph("4","5", snid_con=0, rnid_con=0)
 
     feed_dict = {"0": ["Hello There"]}

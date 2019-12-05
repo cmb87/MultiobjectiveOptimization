@@ -21,6 +21,25 @@ from test_functions import animateSwarm, animateSwarm2
 
 if __name__ == "__main__":
 
+    if True:
+        itermax = 40
+        xbounds = [(-5,10),(0,15)]
+        ybounds = [(0,13500)]
+        cbounds = []
+
+        def branin(X, a, b, c, r, s, t):
+            return a*(X[:,1]-b*X[:,0]**2+c*X[:,0]-r)**2 + s*(1-t)*np.cos(X[:,0])+s, None
+
+        ga = GA(branin, xbounds, ybounds, cbounds, npop=10, args=(1, 5.1/(4*np.pi**2), 5/np.pi, 6, 10, 1/(8*np.pi)))
+        ga.initialize()
+        ga.iterate(itermax)
+
+        ga.restart()
+        ga.iterate(5)
+
+        print(ga.xbest)
+        print(ga.ybest)
+
     if False:
         d = 32
         ### Define toolchain ###

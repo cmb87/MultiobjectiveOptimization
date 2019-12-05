@@ -8,14 +8,16 @@ from src.optimizer.pareto import Pareto
 
 ### Ant colony optimization ###
 class ACO(Optimizer):
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, q=0.1, eps=0.1, colonySize=10, archiveSize=10, **kwargs):
-        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, **kwargs)
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, q=0.1, eps=0.1, 
+                 colonySize=10, archiveSize=10, parallel=False, optidir='./.myopti', args=()):
+        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, optidir=optidir, parallel=parallel,  args=args)
 
         self.colonySize = colonySize
         self.archiveSize = archiveSize
-        self.xbest = np.zeros((0, self.xdim))
-        self.ybest = np.zeros((0, self.ydim))
-        self.pbest = np.zeros((0, 1))
+        self.xranked, self.xbest = np.zeros((0, self.xdim)), np.zeros((0, self.xdim))
+        self.yranked, self.ybest = np.zeros((0, self.ydim)), np.zeros((0, self.ydim))
+        self.cranked, self.cbest = np.zeros((0, self.cdim)), np.zeros((0, self.cdim))
+        self.pranked = np.zeros((0, 1))
         self.q = q
         self.eps = eps
 
@@ -33,21 +35,28 @@ class ACO(Optimizer):
             y, c, p = self.evaluate(x)
 
             ### Append value to so far best seen designs ###
-            xNorm = Optimizer._nondimensionalize(np.vstack((x, self.xbest)), self.xlb, self.xub )
-            yNorm = Optimizer._nondimensionalize(np.vstack((y, self.ybest)), self.ylb, self.yub )
-            p = np.vstack((p, self.pbest))
+            xNorm = Optimizer._nondimensionalize(np.vstack((x, self.xranked)), self.xlb, self.xub )
+            yNorm = Optimizer._nondimensionalize(np.vstack((y, self.yranked)), self.ylb, self.yub )
+            c = np.vstack((c, self.cranked))
+            p = np.vstack((p, self.pranked))
 
             ### Pareto Ranks ###
             ranks = Pareto.computeParetoRanks(yNorm+p)
             idxs = np.argsort(ranks)
 
             ### Sort according to ranks ###
-            xNorm, yNorm, ranks, p = xNorm[idxs, :], yNorm[idxs, :], ranks[idxs], p[idxs]
+            xNorm, yNorm, ranks, p, c = xNorm[idxs, :], yNorm[idxs, :], ranks[idxs], p[idxs], c[idxs, :]
 
-            self.xbest = Optimizer._dimensionalize(xNorm[:self.archiveSize,:], self.xlb, self.xub )
-            self.ybest = Optimizer._dimensionalize(yNorm[:self.archiveSize,:], self.ylb, self.yub )
-            self.pbest = p[:self.archiveSize,:]
+            self.xranked = Optimizer._dimensionalize(xNorm[:self.archiveSize,:], self.xlb, self.xub )
+            self.yranked = Optimizer._dimensionalize(yNorm[:self.archiveSize,:], self.ylb, self.yub )
+            self.cranked = c[:self.archiveSize,:]
+            self.pranked = p[:self.archiveSize,:]
             ranks = ranks[:self.archiveSize]
+
+            ### Store best values ###
+            self.xbest = self.xranked[ranks[:self.archiveSize]<1,:]
+            self.ybest = self.yranked[ranks[:self.archiveSize]<1,:]
+            self.cbest = self.cranked[ranks[:self.archiveSize]<1,:] 
 
             ### Calculate weights ###
             omega = 1/(self.q*self.archiveSize*np.sqrt(2*np.pi))*np.exp((-ranks**2+2*ranks-1.0)/(2*self.q**2*self.archiveSize**2))
@@ -59,8 +68,8 @@ class ACO(Optimizer):
             for l in range(self.colonySize):
                 for i in range(self.xdim):
                     j = np.random.choice(np.arange(self.archiveSize), p=p)
-                    Sji = self.xbest[j,:][i]
-                    sigma = self.eps*np.sum(np.abs(self.xbest[j,i]-self.xbest[:,i]))
+                    Sji = self.xranked[j,:][i]
+                    sigma = self.eps*np.sum(np.abs(self.xranked[j,i]-self.xranked[:,i]))
 
                     ### Sample from normal distribution ###
                     x[l,i] = Sji + sigma*np.random.normal()
@@ -70,8 +79,8 @@ class ACO(Optimizer):
                         x[l,i]=self.xlb[i]
 
             ### Store ###
-            Optimizer.store([self.currentIteration, self.xbest, self.ybest])
+            self.store([self.currentIteration, self.xranked, self.yranked])
 
     ### Restart algorithm ###
     def restart(self):
-        [self.currentIteration, self.xbest, self.ybest] = Optimizer.load()
+        [self.currentIteration, self.xranked, self.yranked] = self.load()

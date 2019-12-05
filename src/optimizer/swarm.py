@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import os
+from datetime import datetime
 
 from src.optimizer.optimizer import Optimizer
 from src.optimizer.pareto import Pareto
@@ -11,16 +13,16 @@ from src.optimizer.pareto import Pareto
 class Swarm(Optimizer):
 
     def __init__(self, fct, xbounds, ybounds, cbounds=[], nparticles=10, nichingDistanceY=0.1, nichingDistanceX=0.1, 
-                 epsDominanceBins=6, minimumSwarmSize=10, **kwargs):
-        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, epsDominanceBins=epsDominanceBins, **kwargs)
-
+                 epsDominanceBins=6, minimumSwarmSize=10, parallel=False, optidir='./.myopti', args=()):
+        super().__init__(fct, xbounds, ybounds, cbounds=cbounds, epsDominanceBins=epsDominanceBins, parallel=parallel, optidir=optidir, args=args)
 
         ### Initialize swarm ###
         self.particles = [Particle(self.xdim, pid, vinitScale=0.5) for pid in range(nparticles)]
-        self.xbest, self.ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
         self.minimumSwarmSize = minimumSwarmSize
         self.particleReductionRate = 0.99
-
+        self.xbest = np.zeros((0, self.xdim))
+        self.ybest = np.zeros((0, self.ydim))
+        self.cbest = np.zeros((0, self.cdim))
         ### Niching parameters ###
         self.delta_y = nichingDistanceY
         self.delta_x = nichingDistanceX
@@ -31,7 +33,6 @@ class Swarm(Optimizer):
     def swarmSize(self):
         return len(self.particles)
     
-
     ### Iterate ###
     def iterate(self, itermax):
 
@@ -60,6 +61,7 @@ class Swarm(Optimizer):
 
             ### Determine new gbest ###
             paretoIndex, _ = Pareto.computeParetoOptimalMember(Optimizer._nondimensionalize(y, self.ylb, self.yub)+p)
+            self.xbest, self.ybest, self.cbest = x[paretoIndex,:], y[paretoIndex,:], c[paretoIndex,:]
 
             for i, particle in enumerate(self.particles):
                 idx = np.random.choice(paretoIndex, 1, replace=False)[0]
@@ -73,16 +75,14 @@ class Swarm(Optimizer):
             [particle.update() for particle in self.particles]
 
             ### Store ###
-            Optimizer.store([self.currentIteration, self.particles, self.xbest, self.ybest])
+            self.store([self.currentIteration, self.particles, self.xbest, self.ybest, self.cbest])
 
 
     ### Restart algorithm ###
     def restart(self, resetParticles=False):
-        [self.currentIteration, self.particles, self.xbest, self.ybest] = Optimizer.load()
+        [self.currentIteration, self.particles, self.xbest, self.ybest, self.cbest] = self.load()
         if resetParticles:
             [particle.reset() for particle in self.particles]
-
-
 
 
 ### Particle ###

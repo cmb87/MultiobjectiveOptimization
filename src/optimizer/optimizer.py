@@ -4,6 +4,7 @@ import os
 import sys
 import pickle
 import functools
+from datetime import datetime
 
 from src.optimizer.pareto import Pareto
 
@@ -12,10 +13,12 @@ from src.optimizer.pareto import Pareto
 class Optimizer(object):
 
     ### Constructor ###
-    def __init__(self, fct, xbounds, ybounds, cbounds=[], epsDominanceBins=None, **kwargs):
+    def __init__(self, fct, xbounds, ybounds, cbounds=[], epsDominanceBins=None, optidir='./.myOpti' , args=(), parallel=False):
 
         self.fct = fct
         self.currentIteration = 0
+        self.parallel = parallel
+
         self.xdim = len(xbounds)
         self.ydim = len(ybounds)
         self.cdim = len(cbounds)
@@ -24,7 +27,7 @@ class Optimizer(object):
         self.ylb, self.yub = np.asarray([x[0] for x in ybounds]), np.asarray([x[1] for x in ybounds])
         self.clb, self.cub = np.asarray([x[0] for x in cbounds]), np.asarray([x[1] for x in cbounds])
 
-        self.xbest, self.ybest = np.zeros((0, self.xlb.shape[0])), np.zeros((0, self.ylb.shape[0]))
+        self.xbest, self.ybest, self.cbest  = np.zeros((0, self.xdim )), np.zeros((0, self.ydim )), np.zeros((0, self.cdim ))
 
         ### Sanity checks ###
         assert np.any(self.xlb<self.xub), "X: Lower bound must be smaller than upper bound"
@@ -40,17 +43,20 @@ class Optimizer(object):
         ### Eps dominace ###
         self.epsDominanceBins = epsDominanceBins
 
+        ### Store opti dir and name ###
+        self.optidir = optidir
+
         ### Keywordarguments ###
-        self.kwargs = kwargs
+        self.args = args
 
 
     ### Evaluate function ###
     def evaluate(self, X):
         ### Evaluate toolchain ###
-        output = self.fct(X, **self.kwargs)
+        output = self.fct(X, *self.args)
+
         Y = output[0].reshape(X.shape[0], self.ydim)
         C = output[1].reshape(X.shape[0], self.cdim) if self.cdim>0 else np.zeros((X.shape[0], self.cdim))
-
 
         ### Build penalty function ###
         Py = Optimizer.boundaryCheck(Y, self.ylb, self.yub)
@@ -63,6 +69,7 @@ class Optimizer(object):
 
     ### Initialize ###
     def initialize(self):
+        os.makedirs(self.optidir, exist_ok=True)
         self.currentIteration = 0
 
     ### Check boundary violation and penalizis it ###
@@ -71,8 +78,7 @@ class Optimizer(object):
         Y = Optimizer._nondimensionalize(Y, ylb, yub)
         index = (Y<0) | (Y>1.0)
         Y[~index] = 0.0
-        return np.sum(Y**2,axis=1).reshape(-1,1) 
-
+        return np.sum(Y**2,axis=1).reshape(-1,1)
 
     ### Epsilon Dominance ###
     def epsDominance(self):
@@ -110,15 +116,20 @@ class Optimizer(object):
         return lb + x * (ub - lb)
 
     ### Restart ###
-    @staticmethod
-    def load(filename=".optimizerBackup.pkl"):
-        with open(filename,'rb') as f1:
+    def load(self):
+        if not os.path.isdir(self.optidir):
+            return
+        elif len(os.listdir(self.optidir)) == 0:
+            return 
+        with open(self.returnLatest(),'rb') as f1:
             datalist = pickle.load(f1)
         return datalist
 
     ### Backup ###
-    @staticmethod
-    def store(datalist, filename=".optimizerBackup.pkl"):
-        with open(filename,'wb') as f1:
+    def store(self, datalist):
+        with open(os.path.join(self.optidir, datetime.now().strftime("%Y%m%d-%H%M%S")+'.pkl'), 'wb') as f1:
             pickle.dump(datalist,f1)
 
+    ### List backupfiles and return latest file ###
+    def returnLatest(self):
+        return os.path.join(self.optidir, sorted(os.listdir(self.optidir))[-1])
