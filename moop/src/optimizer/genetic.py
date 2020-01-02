@@ -8,8 +8,8 @@ from typing import Callable
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .optimizer.pareto import Pareto
-from .optimizer.optimizer import Optimizer
+from .pareto import Pareto
+from .optimizer import Optimizer
 
 
 class GA(Optimizer):

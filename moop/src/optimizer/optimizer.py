@@ -12,7 +12,7 @@ import logging
 
 from typing import Callable, Union, Tuple
 
-from .optimizer.pareto import Pareto
+from .pareto import Pareto
 
 
 # Generic Optimizer class
@@ -73,12 +73,12 @@ class Optimizer:
         self.cbest = np.zeros((0, self.xdim))
 
         # Sanity checks
-        assert np.any(self.xlb < self.xub),
+        assert np.any(self.xlb < self.xub), \
         "X: Lower bound must be smaller than upper bound"
-        assert np.any(self.ylb < self.yub),
+        assert np.any(self.ylb < self.yub), \
         "Y: Lower bound must be smaller than upper bound"
         if self.clb.shape[0] > 0:
-            assert np.any(self.clb < self.cub),
+            assert np.any(self.clb < self.cub), \
             "C: Lower bound must be smaller than upper bound"
 
         # Database
