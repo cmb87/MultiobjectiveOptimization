@@ -21,8 +21,8 @@ sys.path.insert(0, os.path.abspath("../"))
 # -- Project information -----------------------------------------------------
 
 project = "Multiobjective-Optimization"
-copyright = "2020, Christian Peeren, Matthias Huels"
-author = "Christian Peeren, Matthias Huels"
+copyright = "2020, Christian Peeren"
+author = "Christian Peeren"
 
 # The full version, including alpha/beta/rc tags
 release = "0.0.0.1"
