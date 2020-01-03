@@ -1,32 +1,27 @@
 """Genetic algorithm module
 """
-import os
-import sys
 import logging
-
 from typing import Callable
-import numpy as np
-import matplotlib.pyplot as plt
 
+import numpy as np
 from .pareto import Pareto
 from .optimizer import Optimizer
 
 
 class GA(Optimizer):
-
     def __init__(
         self,
         fct: Callable,
         xbounds: list,
         ybounds: list,
-        cbounds: list=[],
-        npop: int=20,
+        cbounds: list = [],
+        npop: int = 20,
         nichingDistanceY: float = 0.1,
         nichingDistanceX: float = 0.1,
         parallel: bool = False,
         epsDominanceBins: int = 6,
-        optidir: str = './.myopti',
-        args: tuple = ()
+        optidir: str = "./.myopti",
+        args: tuple = (),
     ) -> None:
         """Constructor of Genetic Algorithm
 
@@ -64,7 +59,7 @@ class GA(Optimizer):
             epsDominanceBins=epsDominanceBins,
             parallel=parallel,
             optidir=optidir,
-            args=args
+            args=args,
         )
 
         self.xranked = np.zeros((0, self.xdim))
@@ -78,12 +73,7 @@ class GA(Optimizer):
         self.pranked = np.zeros((0, 1))
         self.npop = npop
 
-    def iterate(
-        self,
-        itermax: int,
-        mut: float = 0.5,
-        crossp: float = 0.7
-    ) -> None:
+    def iterate(self, itermax: int, mut: float = 0.5, crossp: float = 0.7) -> None:
         """Iterate
 
         Parameters
@@ -96,9 +86,7 @@ class GA(Optimizer):
             Crossover probability
         """
         x = Optimizer._dimensionalize(
-            np.random.rand(self.npop, self.xdim),
-            self.xlb,
-            self.xub
+            np.random.rand(self.npop, self.xdim), self.xlb, self.xub
         )
 
         # Start iterating
@@ -111,14 +99,10 @@ class GA(Optimizer):
 
             # Append value to so far best seen designs
             xNorm = Optimizer._nondimensionalize(
-                np.vstack((x, self.xranked)),
-                self.xlb,
-                self.xub
+                np.vstack((x, self.xranked)), self.xlb, self.xub
             )
             yNorm = Optimizer._nondimensionalize(
-                np.vstack((y, self.yranked)),
-                self.ylb,
-                self.yub
+                np.vstack((y, self.yranked)), self.ylb, self.yub
             )
             c = np.vstack((c, self.cranked))
             p = np.vstack((p, self.pranked))
@@ -133,23 +117,27 @@ class GA(Optimizer):
 
             # Ranked
             self.xranked = Optimizer._dimensionalize(
-                xNorm[:self.npop, :],
-                self.xlb,
-                self.xub
+                xNorm[: self.npop, :], self.xlb, self.xub
             )
             self.yranked = Optimizer._dimensionalize(
-                yNorm[:self.npop, :],
-                self.ylb,
-                self.yub
+                yNorm[: self.npop, :], self.ylb, self.yub
             )
-            self.cranked = c[:self.npop, :]
-            self.pranked = p[:self.npop, :]
+            self.cranked = c[: self.npop, :]
+            self.pranked = p[: self.npop, :]
+
+            # Eps Dominance
+            index2delete = self.epsDominance(self.ybest)
+            self.xranked = np.delete(self.xranked, index2delete, axis=0)
+            self.yranked = np.delete(self.yranked, index2delete, axis=0)
+            self.pranked = np.delete(self.pranked, index2delete, axis=0)
+            self.cranked = np.delete(self.cranked, index2delete, axis=0)
 
             # Store best values
-            self.xbest = self.xranked[ranks[:self.npop] < 1, :]
-            self.ybest = self.yranked[ranks[:self.npop] < 1, :]
-            self.cbest = self.cranked[ranks[:self.npop] < 1, :]
+            self.xbest = self.xranked[ranks[: self.npop] < 1, :]
+            self.ybest = self.yranked[ranks[: self.npop] < 1, :]
+            self.cbest = self.cranked[ranks[: self.npop] < 1, :]
 
+            # Filter by eps dominance
             logging.debug("mean", x.mean(), "std", x.std())
 
             # Differential Evolution
@@ -163,21 +151,15 @@ class GA(Optimizer):
                     cross_points[np.random.randint(0, self.xdim)] = True
 
                 x[j, :] = Optimizer._dimensionalize(
-                    np.where(cross_points, mutant, xNorm[j, :]),
-                    self.xlb,
-                    self.xub
+                    np.where(cross_points, mutant, xNorm[j, :]), self.xlb, self.xub
                 )
 
             # Store
-            self.store([self.currentIteration,
-                        self.xranked,
-                        self.yranked,
-                        self.pranked
-                        ])
-
+            self.store(
+                [self.currentIteration, self.xranked, self.yranked, self.pranked]
+            )
 
     def restart(self) -> None:
         """Restart algorithm
         """
-        [self.currentIteration, self.xranked,
-         self.yranked, self.pranked] = self.load()
+        [self.currentIteration, self.xranked, self.yranked, self.pranked] = self.load()

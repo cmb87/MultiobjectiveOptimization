@@ -1,27 +1,25 @@
 """Graph module
 """
-import numpy as np
 import os
-
-import importlib
-import inspect
 import re
+import inspect
 import logging
-import matplotlib.pyplot as plt
-from typing import Callable, Union, Tuple, NewType
+import importlib
+from typing import Tuple, Union, NewType, Callable
 
+import numpy as np
+import matplotlib.pyplot as plt
 from .database import Database
+from .variables import Variable
 from .operations import Operation, FunctionOperation
 from .placeholders import Placeholder
-from .variables import Variable
 
+OperationType = NewType("OperationType", Operation)
+PlaceholderType = NewType("PlaceholderType", Placeholder)
+VariableType = NewType("VariableType", Variable)
 
-OperationType = NewType('OperationType', Operation)
-PlaceholderType = NewType('PlaceholderType', Placeholder)
-VariableType = NewType('VariableType', Variable)
 
 class Graph:
-
     def __init__(self, graph: dict = {}) -> None:
         """Constructor of the the Graph class
 
@@ -56,7 +54,6 @@ class Graph:
 
         recurse(operation)
         return nodes_postorder
-
 
     def run(self, feed_dict: dict, outputOperations: list) -> list:
         """Run the graph
@@ -95,9 +92,12 @@ class Graph:
                         node.output = node.value
                     # It is a operation
                     else:
-                        node.inputs = [input_node.output[con] for input_node,
-                                       con in zip(node.input_nodes,
-                                       node.input_cons)]
+                        node.inputs = [
+                            input_node.output[con]
+                            for input_node, con in zip(
+                                node.input_nodes, node.input_cons
+                            )
+                        ]
 
                         # args asterixs to unpack content of node.inputs
                         node.output = node.compute(*node.inputs)
@@ -164,8 +164,7 @@ class Graph:
         return phs
 
     def addNodeToGraph(
-        self,
-        nodeobjct: Union[VariableType, OperationType, PlaceholderType]
+        self, nodeobjct: Union[VariableType, OperationType, PlaceholderType]
     ) -> None:
         """Add node to the graph
 
@@ -181,18 +180,18 @@ class Graph:
 
     def addConnectionToGraph(
         self,
-        snid: int,
-        rnid: int,
+        snid: Union[int, str],
+        rnid: Union[int, str],
         snid_con: int = 0,
-        rnid_con: int = 0
+        rnid_con: int = 0,
     ) -> None:
         """Add connection to the graph
 
         Parameters
         ----------
-        snid : int
+        snid : Union[int, str]
             Sending node ID
-        rnid : int
+        rnid : Union[int, str]
             Receiving node ID
         snid_con : int, optional
             Description
@@ -202,7 +201,6 @@ class Graph:
         if snid in list(self.graph.keys()) and rnid in list(self.graph.keys()):
             self.graph[rnid].addFromNode(self.graph[snid], connector=snid_con)
             self.graph[snid].addToNode(self.graph[rnid], connector=rnid_con)
-
 
     def generateGraphFromFlowchart(self, flowchart: dict) -> None:
         """Generate graph from flowchart
@@ -216,49 +214,47 @@ class Graph:
         # Convert pipeline to graph
         self.graph, self.modules, self.dependencies = {}, [], []
 
-        for nid, node in flowchart['operators'].items():
+        for nid, node in flowchart["operators"].items():
             # Figure out dependencies
-            if 'dependencies' in node['process']:
-                self.dependencies.extend(node['process']['dependencies'])
+            if "dependencies" in node["process"]:
+                self.dependencies.extend(node["process"]["dependencies"])
 
             # Determine type of node
-            if 'module_path' in node['process'] and 'name' in node['process']:
+            if "module_path" in node["process"] and "name" in node["process"]:
                 # Add module to list
-                module_path = node['process']['module_path']
-                ninputs = len(node['properties']['inputs'])
-                noutputs = len(node['properties']['outputs'])
-                class_name = node['process']['name']
-                process_name = node['properties']['title']
+                module_path = node["process"]["module_path"]
+                ninputs = len(node["properties"]["inputs"])
+                noutputs = len(node["properties"]["outputs"])
+                class_name = node["process"]["name"]
+                process_name = node["properties"]["title"]
                 try:
-                    value = node['process']['value']
-                except:
+                    value = node["process"]["value"]
+                except KeyError:
                     value = 0
 
                 self.modules.append(module_path)
 
                 # Import class from module
                 ImportedClass = getattr(
-                    importlib.import_module(module_path),
-                    class_name
+                    importlib.import_module(module_path), class_name
                 )
                 node = ImportedClass(
                     nid=nid,
                     name=process_name,
                     noutputs=noutputs,
                     ninputs=ninputs,
-                    value=value
+                    value=value,
                 )
                 self.addNodeToGraph(node)
 
         # Set in and output
-        for cid, con in flowchart['links'].items():
-            snid = str(con['fromOperator'])
-            snid_con = int(re.findall('\d+', con['fromConnector'])[0])
+        for cid, con in flowchart["links"].items():
+            snid = str(con["fromOperator"])
+            snid_con = int(re.findall("\\d+", con["fromConnector"])[0])
 
-            rnid = str(con['toOperator'])
-            rnid_con = int(re.findall('\d+', con['toConnector'])[0])
+            rnid = str(con["toOperator"])
+            rnid_con = int(re.findall("\\d+", con["toConnector"])[0])
             self.addConnectionToGraph(snid, rnid, snid_con, rnid_con)
-
 
     def generateFlowchartFromGraph(self) -> dict:
         """Generate flowchart from graph
@@ -268,54 +264,61 @@ class Graph:
         dict
             Flowchart dictionary to be sent to jquery
         """
-        flowchart = {'operators': {}, 'links': {}}
+        flowchart = {"operators": {}, "links": {}}
         linkctr = 0
         for nid, node in self.graph.items():
 
             ninputs = node.ninputs
             noutputs = node.noutputs
 
-            process = {'ninputs': ninputs, 'noutputs': noutputs,
-                       'module_path': inspect.getmodule(node).__name__,
-                       'description': 'Nope', 'name': node.__class__.__name__,
-                       'output_dtype': ['float' for i in range(noutputs)],
-                       'output_labels': ['z{}'.format(i)
-                                         for i in range(noutputs)],
-                       'input_labels': ['x{}'.format(i)
-                                        for i in range(ninputs)],
-                       'value': node.value if 'value' in vars(node) else None
-                       }
+            process = {
+                "ninputs": ninputs,
+                "noutputs": noutputs,
+                "module_path": inspect.getmodule(node).__name__,
+                "description": "Nope",
+                "name": node.__class__.__name__,
+                "output_dtype": ["float" for i in range(noutputs)],
+                "output_labels": ["z{}".format(i) for i in range(noutputs)],
+                "input_labels": ["x{}".format(i) for i in range(ninputs)],
+                "value": node.value if "value" in vars(node) else None,
+            }
 
-            properties = {'title': node.__class__.__name__,
-                          'inputs': {'input_{}'.format(i): {'label': f"x{i}"}\
-                          for i in range(ninputs)},
-                          'outputs': {'output_{}'.format(i): {'label': f"z{i}"}\
-                          for i in range(noutputs)},
-                          }
+            properties = {
+                "title": node.__class__.__name__,
+                "inputs": {
+                    "input_{}".format(i): {"label": f"x{i}"} for i in range(ninputs)
+                },
+                "outputs": {
+                    "output_{}".format(i): {"label": f"z{i}"} for i in range(noutputs)
+                },
+            }
 
-            flowchart['operators'][nid] = {}
-            flowchart['operators'][nid]["top"] = 60
-            flowchart['operators'][nid]["left"] = 500 + 10 * int(nid)
-            flowchart['operators'][nid]["selected"] = ""
-            flowchart['operators'][nid]["properties"] = properties
-            flowchart['operators'][nid]["process"] = process
+            flowchart["operators"][nid] = {}
+            flowchart["operators"][nid]["top"] = 60
+            flowchart["operators"][nid]["left"] = 500 + 10 * int(nid)
+            flowchart["operators"][nid]["selected"] = ""
+            flowchart["operators"][nid]["properties"] = properties
+            flowchart["operators"][nid]["process"] = process
 
             # Add links
             for i, nodeout in enumerate(node.input_nodes):
-                flowchart['links'][str(linkctr)] = {}
-                flowchart['links'][str(linkctr)]['fromOperator'] = nodeout.nid
-                flowchart['links'][str(linkctr)]['fromConnector'] = f"Output\
+                flowchart["links"][str(linkctr)] = {}
+                flowchart["links"][str(linkctr)]["fromOperator"] = nodeout.nid
+                flowchart["links"][str(linkctr)][
+                    "fromConnector"
+                ] = f"Output\
                 {node.input_cons[i]}"
 
-                flowchart['links'][str(linkctr)]['fromSubConnector'] = '0'
-                flowchart['links'][str(linkctr)]['toOperator'] = nid
-                flowchart['links'][str(linkctr)]['toConnector'] = f"Input\
+                flowchart["links"][str(linkctr)]["fromSubConnector"] = "0"
+                flowchart["links"][str(linkctr)]["toOperator"] = nid
+                flowchart["links"][str(linkctr)][
+                    "toConnector"
+                ] = f"Input\
                 {nodeout.output_cons[i]}"
-                flowchart['links'][str(linkctr)]['toSubConnector'] = '0'
+                flowchart["links"][str(linkctr)]["toSubConnector"] = "0"
                 linkctr += 1
 
         return flowchart
-
 
 
 class OptimizationGraph(Graph):
@@ -328,11 +331,11 @@ class OptimizationGraph(Graph):
         rdim: int = 1,
         tindex: list = [0],
         cindex: list = [],
-        xlabels: Union[list, None]=None,
-        rlabels: Union[list, None]=None,
-        output_nid: Union[int, None]=None,
-        input_nid: Union[int, None]=None,
-        iteration: int = 0
+        xlabels: Union[list, None] = None,
+        rlabels: Union[list, None] = None,
+        output_nid: Union[int, None] = None,
+        input_nid: Union[int, None] = None,
+        iteration: int = 0,
     ) -> None:
         """Special Graph for optimizations (only numeric in and output)
 
@@ -368,18 +371,21 @@ class OptimizationGraph(Graph):
         self.input_nid = input_nid
         self.iteration = iteration
         self.name = name
-        self.xlabels = ["x{}".format(i) for i in range(self.xdim)] \
-        if xlabels is None else xlabels
-        self.rlabels = ["r{}".format(i) for i in range(self.rdim)] \
-        if rlabels is None else rlabels
+        self.xlabels = (
+            ["x{}".format(i) for i in range(self.xdim)] if xlabels is None else xlabels
+        )
+        self.rlabels = (
+            ["r{}".format(i) for i in range(self.rdim)] if rlabels is None else rlabels
+        )
 
-        assert len(self.xlabels) == self.xdim, \
-        "xlabels must match specified parameter dimension!"
-        assert len(self.rlabels) == self.rdim, \
-        "rlabels must match specified response  dimension!"
+        assert (
+            len(self.xlabels) == self.xdim
+        ), "xlabels must match specified parameter dimension!"
+        assert (
+            len(self.rlabels) == self.rdim
+        ), "rlabels must match specified response  dimension!"
 
         self.createTable()
-
 
     def singleProcessChain(self, function: Callable) -> None:
         """If we are working with a single process
@@ -387,20 +393,16 @@ class OptimizationGraph(Graph):
         Parameters
         ----------
         function : Callable
-            Description
+            Optimization function
         """
-        placeholder = Placeholder(
-            nid="0",
-            name="Placeholder",
-            noutputs=1
-        )
+        # Reset graph
+        self.graph = {}
 
-        operation = FunctionOperation(
-            nid="1",
-            name="OptimizationFct",
-            noutputs=1
-        )
+        # Add one placeholder and operation
+        placeholder = Placeholder(nid="0", name="Placeholder", noutputs=1)
+        operation = FunctionOperation(nid="1", name="OptimizationFct", noutputs=1)
 
+        # Assign function
         operation.function = function
 
         # Construct graph
@@ -414,7 +416,6 @@ class OptimizationGraph(Graph):
         else:
             logging.info("Something weired is going on for the single graph!")
 
-
     def sanityCheck(self) -> bool:
         """Sanity check of the graph
 
@@ -424,21 +425,25 @@ class OptimizationGraph(Graph):
             Description
         """
         if not len(self.placeholders) == 1:
-            logging.info("There can only be one \
-                placeholder for an OptimizationGraph!")
+            logging.info(
+                "There can only be one \
+                placeholder for an OptimizationGraph!"
+            )
             return False
 
-        if not self.output_nid in \
-            [key for key in list(self.operations.keys())]:
+        if self.output_nid not in [key for key in list(self.operations.keys())]:
             logging.info("Output node ID not found in graph!")
             return False
 
-        if not self.input_nid in \
-            [key for key in list(self.placeholders.keys())]:
-            logging.info("Input node ID not found in graph!")
+        if self.input_nid not in [key for key in list(self.placeholders.keys())]:
+            logging.info(
+                f"Input node ID {self.input_nid} not found in graph\
+                 {list(self.placeholders.keys())}!"
+            )
             return False
 
-        if not isinstance(self.graph[self.input_nid], Placeholder):
+        if isinstance(self.graph[self.input_nid], Placeholder):
+            print(Placeholder, self.graph[self.input_nid])
             logging.info("Input node must be a Placeholder!")
             return False
 
@@ -447,7 +452,6 @@ class OptimizationGraph(Graph):
             return False
 
         return True
-
 
     def run(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Run chain, this is what the optimization class gets
@@ -463,6 +467,7 @@ class OptimizationGraph(Graph):
             Tupel of targets and constraints
         """
         # Get postorder from graph
+
         nodes_postorder = Graph.traverse_postorder(self.graph[self.output_nid])
         feed_dict = {self.input_nid: [X]}
 
@@ -479,11 +484,11 @@ class OptimizationGraph(Graph):
                     node.output = node.value
                 # It is a operation
                 else:
-                    node.inputs = [input_node.output[con]
-                                   for input_node, con
-                                   in zip(node.input_nodes, node.input_cons)
-                                   ]
-                    node.output = node.compute(*node.inputs)    # args asterixs
+                    node.inputs = [
+                        input_node.output[con]
+                        for input_node, con in zip(node.input_nodes, node.input_cons)
+                    ]
+                    node.output = node.compute(*node.inputs)  # args asterixs
                 # Set evalutation flag to true after successfull execution
                 node.evaluated = True
 
@@ -499,7 +504,6 @@ class OptimizationGraph(Graph):
         # Add computed result to outputs
         return R[:, self.tindex], R[:, self.cindex]
 
-
     def createTable(self) -> None:
         """Store toolchain in Mastertable
         """
@@ -513,7 +517,6 @@ class OptimizationGraph(Graph):
         Database.create_table(self.name, columns)
         logging.info("Database created!")
 
-
     def store(self, X: np.ndarray, R: np.ndarray) -> None:
         """Store in database
 
@@ -525,12 +528,13 @@ class OptimizationGraph(Graph):
             Response vector (Graph output)
         """
         it = self.iteration * np.ones((X.shape[0], 1))
-        Database.insertMany(self.name, rows=np.hstack((it, X, R)).tolist(),
-                            columnNames=["iter"] + self.xlabels + self.rlabels)
+        Database.insertMany(
+            self.name,
+            rows=np.hstack((it, X, R)).tolist(),
+            columnNames=["iter"] + self.xlabels + self.rlabels,
+        )
 
-    def postprocessReturnAll(
-        self
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def postprocessReturnAll(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Returns array with iterations, design vectors and responses
 
         Returns
@@ -539,18 +543,21 @@ class OptimizationGraph(Graph):
             Tupel of three array (iters, X and R)
         """
         iters = [x["iter"] for x in Database.find(self.name, variables=["iter"])]
-        X = np.asarray([[d[k] for k in xlabels] for d in Database.find(
-            self.name,
-            variables=self.xlabels
-        )])
-        R = np.asarray([[d[k] for k in ylabels] for d in Database.find(
-            self.name,
-            variables=self.rlabels
-        )])
+        X = np.asarray(
+            [
+                [d[k] for k in self.xlabels]
+                for d in Database.find(self.name, variables=self.xlabels)
+            ]
+        )
+        R = np.asarray(
+            [
+                [d[k] for k in self.ylabels]
+                for d in Database.find(self.name, variables=self.rlabels)
+            ]
+        )
         return iters, X, R
 
-
-    def postprocess(self, resdir: str = './', store:bool = False) -> None:
+    def postprocess(self, resdir: str = "./", store: bool = False) -> None:
         """Plotss resutls
 
         Parameters
@@ -560,11 +567,10 @@ class OptimizationGraph(Graph):
         store : bool, optional
             If true plots will be store, else shown.
         """
-        iters = [x["iter"] for x in Database.find(
-            self.name,
-            variables=["iter"],
-            distinct=True
-        )]
+        iters = [
+            x["iter"]
+            for x in Database.find(self.name, variables=["iter"], distinct=True)
+        ]
 
         columnNames = [x[1] for x in Database.getMetaData(self.name)][2:]
         data_mean = np.zeros((len(iters), len(columnNames)))
@@ -573,8 +579,12 @@ class OptimizationGraph(Graph):
         data_std = np.zeros((len(iters), len(columnNames)))
 
         for n, it in enumerate(iters):
-            data = np.asarray([[d[k] for k in columnNames]
-                for d in Database.find(self.name, query={"iter": ["=", it]})])
+            data = np.asarray(
+                [
+                    [d[k] for k in columnNames]
+                    for d in Database.find(self.name, query={"iter": ["=", it]})
+                ]
+            )
             data_mean[n, :] = data.mean(axis=0)
             data_max[n, :] = data.max(axis=0)
             data_min[n, :] = data.min(axis=0)
@@ -584,26 +594,13 @@ class OptimizationGraph(Graph):
             fig, ax1 = plt.subplots()
 
             for k, (data, style) in enumerate(
-                zip([data_mean, data_max, data_min, data_std],
-                    ['k-', 'b-', 'r-', '--'])
+                zip([data_mean, data_max, data_min, data_std], ["k-", "b-", "r-", "--"])
             ):
                 if k == 3:
-                    ax1.plot(
-                        iters,
-                        data_mean[:, n] + data[:, n],
-                        style,
-                        color="gray"
-                    )
-                    ax1.plot(
-                        iters,
-                        data_mean[:, n] - data[:, n],
-                        style,
-                        color="gray"
-                    )
+                    ax1.plot(iters, data_mean[:, n] + data[:, n], style, color="gray")
+                    ax1.plot(iters, data_mean[:, n] - data[:, n], style, color="gray")
                 else:
                     ax1.plot(iters, data[:, n], style, lw=3)
-
-                ax2 = ax1.twinx()
 
             ax1.set_xlabel("Iterations")
             ax1.set_ylabel(var)
@@ -615,7 +612,6 @@ class OptimizationGraph(Graph):
             else:
                 plt.show()
 
-
     def postprocessAnimate(self) -> Tuple[np.ndarray, np.ndarray]:
         """Postprocessing class needed to create animations
 
@@ -624,27 +620,30 @@ class OptimizationGraph(Graph):
         Tuple[np.ndarray, np.ndarray]
             Tupel of design and target vectors
         """
-        iters = [x["iter"] for x in Database.find(
-            self.name,
-            variables=["iter"],
-            distinct=True
-        )]
+        iters = [
+            x["iter"]
+            for x in Database.find(self.name, variables=["iter"], distinct=True)
+        ]
 
         Xcine, Ycine = [], []
         for n, it in enumerate(iters):
-            X = np.asarray([[d[k] for k in self.xlabels]
-                for d in Database.find(
-                    self.name,
-                    variables=self.xlabels,
-                    query={"iter": ["=", it]}
-            )])
+            X = np.asarray(
+                [
+                    [d[k] for k in self.xlabels]
+                    for d in Database.find(
+                        self.name, variables=self.xlabels, query={"iter": ["=", it]}
+                    )
+                ]
+            )
 
-            Y = np.asarray([[d[k] for k in self.rlabels]
-                for d in Database.find(
-                    self.name,
-                    variables=self.rlabels,
-                    query={"iter": ["=", it]}
-            )])
+            Y = np.asarray(
+                [
+                    [d[k] for k in self.rlabels]
+                    for d in Database.find(
+                        self.name, variables=self.rlabels, query={"iter": ["=", it]}
+                    )
+                ]
+            )
 
             Xcine.append(X)
             Ycine.append(Y)

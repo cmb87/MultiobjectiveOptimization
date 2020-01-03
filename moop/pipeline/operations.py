@@ -1,22 +1,22 @@
+import logging
+from typing import Union, NewType, Callable, Optional
 
 import numpy as np
-import logging
-from typing import Callable, Union, Tuple, NewType, Optional
-
-from .placeholders import Placeholder
 from .variables import Variable
+from .placeholders import Placeholder
 
-PlaceholderType = NewType('PlaceholderType', Placeholder)
-VariableType = NewType('VariableType', Variable)
+PlaceholderType = NewType("PlaceholderType", Placeholder)
+VariableType = NewType("VariableType", Variable)
 
-class Operation():
+
+class Operation:
     def __init__(
         self,
-        nid: int,
+        nid: Union[int, str],
         name: str = "node",
         noutputs: int = 1,
         ninputs: int = 1,
-        value: Optional = None
+        value: Optional = None,
     ) -> None:
         """This is the operation class object
 
@@ -40,7 +40,6 @@ class Operation():
         self.ninputs = ninputs
         self.value = value
 
-
     def sanity_check(self) -> bool:
         """Sanity check
 
@@ -50,26 +49,31 @@ class Operation():
             Healty or not
         """
         if len(self.input_nodes) == 0:
-            logging.info(f"Warning for {self.name}(id={self.nid}): No input \
+            logging.info(
+                f"Warning for {self.name}(id={self.nid}): No input \
                 specified. Is this node  needed? Add a connection or remove \
-                this node!")
+                this node!"
+            )
             return False
 
         if not len(list(set(self.input_cons))) == self.ninputs:
-            logging.info(f"Warning for {self.name}(id={self.nid}): Not all \
-                or too many input connectors are used")
+            logging.info(
+                f"Warning for {self.name}(id={self.nid}): Not all \
+                or too many input connectors are used"
+            )
 
         if not len(list(set(self.output_cons))) == self.noutputs:
-            logging.info(f"Warning for {self.name}(id={self.nid}): Not all \
-                or too many output connectors are used")
+            logging.info(
+                f"Warning for {self.name}(id={self.nid}): Not all \
+                or too many output connectors are used"
+            )
 
         return True
-
 
     def addFromNode(
         self,
         nodeobj: Union[VariableType, Callable, PlaceholderType],
-        connector: int = 0
+        connector: int = 0,
     ) -> None:
         """Add a sending node
 
@@ -83,11 +87,10 @@ class Operation():
         self.input_nodes.append(nodeobj)
         self.input_cons.append(connector)
 
-
     def addToNode(
         self,
         nodeobj: Union[VariableType, Callable, PlaceholderType],
-        connector: int = 0
+        connector: int = 0,
     ):
         """Add a receiving node
 
@@ -113,7 +116,6 @@ class Operation():
         pass
 
 
-
 class FunctionOperation(Operation):
     def __init__(
         self,
@@ -121,8 +123,8 @@ class FunctionOperation(Operation):
         name="node",
         noutputs: int = 1,
         ninputs: int = 1,
-        function: Union[Callable, None]=None,
-        value: Optional = None
+        function: Union[Callable, None] = None,
+        value: Optional = None,
     ) -> None:
         """FunctionOperation
 

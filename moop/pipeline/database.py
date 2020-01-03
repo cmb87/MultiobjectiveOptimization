@@ -1,9 +1,6 @@
-import sys
-
-import os
 import logging
-from typing import Union
 import sqlite3 as lite
+from typing import Union
 
 
 class Database:
@@ -26,7 +23,10 @@ class Database:
         try:
             with con:
                 cur = con.cursor()
-                cur.execute(f"SELECT count(name) FROM sqlite_master WHERE type='table' AND name='{tablename}'")
+                cur.execute(
+                    f"SELECT count(name) FROM sqlite_master \
+                    WHERE type='table' AND name='{tablename}'"
+                )
                 if cur.fetchone()[0] == 1:
                     return True
         except lite.Error as e:
@@ -74,8 +74,7 @@ class Database:
             bool: Description
         """
 
-        columns = ["{} {}".format(key, columnsdict[key])\
-                   for key in columnsdict.keys()]
+        columns = ["{} {}".format(key, columnsdict[key]) for key in columnsdict.keys()]
 
         if not Database._checkIfTableExists(tablename):
             con = lite.connect(Database.PATH2DB)
@@ -86,8 +85,9 @@ class Database:
                     # result set. We call the execute() method of the cursor
                     # and execute the SQL statement.
                     cur = con.cursor()
-                    cur.execute("CREATE TABLE {}({})".format(tablename,
-                                ', '.join(columns)))
+                    cur.execute(
+                        "CREATE TABLE {}({})".format(tablename, ", ".join(columns))
+                    )
                     logging.info("New table {} created sucessfully.".format(tablename))
                     return True
             except lite.Error as e:
@@ -99,7 +99,7 @@ class Database:
         return False
 
     @staticmethod
-    def insertMany(tablename: str, rows: list, columnNames: list=None) -> bool:
+    def insertMany(tablename: str, rows: list, columnNames: list = None) -> bool:
         """Summary
 
         Args:
@@ -115,18 +115,23 @@ class Database:
             logging.info("Nothing to insert!")
             return
 
-        placeholder = ', '.join(len(rows[0]) * ['?'])
+        placeholder = ", ".join(len(rows[0]) * ["?"])
         con = lite.connect(Database.PATH2DB)
 
         try:
             with con:
                 cur = con.cursor()
                 if isinstance(columnNames, type(None)):
-                    cur.executemany("INSERT INTO {} VALUES({})".format(tablename,
-                    placeholder), rows)
+                    cur.executemany(
+                        "INSERT INTO {} VALUES({})".format(tablename, placeholder), rows
+                    )
                 elif isinstance(columnNames, list):
-                    cur.executemany("INSERT INTO {}({}) VALUES({})".format(tablename,
-                    ", ".join(columnNames), placeholder), rows)
+                    cur.executemany(
+                        "INSERT INTO {}({}) VALUES({})".format(
+                            tablename, ", ".join(columnNames), placeholder
+                        ),
+                        rows,
+                    )
                 return True
         except lite.Error as e:
             logging.warning("{}".format(e))
@@ -136,10 +141,7 @@ class Database:
 
     @staticmethod
     def insertManyInChunks(
-        tablename: str,
-        rows: list,
-        columnNames: dict,
-        chunksize: int=200
+        tablename: str, rows: list, columnNames: dict, chunksize: int = 200
     ) -> bool:
         """Insert many items in chunks
 
@@ -152,12 +154,14 @@ class Database:
         Returns:
             param: Description
         """
-        if len(rows[0])< 999:
+        if len(rows[0]) < 999:
             logging.info("This is unnecessary! Use insertMany instead")
             return Database.insertMany(tablename, rows, columns)
 
         for start in range(0, len(rows[0]), chunksize):
-            end = start+chunksize if start+chunksize< len(rows[0]) else len(rows[0])
+            end = (
+                start + chunksize if start + chunksize < len(rows[0]) else len(rows[0])
+            )
             subrows = [x[start:end] for x in rows]
             subcolumns = columnNames[start:end]
             Database.insertMany(tablename, subrows, subcolumns)
@@ -180,15 +184,19 @@ class Database:
 
         con = lite.connect(Database.PATH2DB)
         for row in rows:
-            placeholders = ', '.join(['?' for key, val in row.items()])
+            placeholders = ", ".join(["?" for key, val in row.items()])
             vals = [val for key, val in row.items()]
             keys = list(row.keys())
 
             try:
                 with con:
                     cur = con.cursor()
-                    cur.execute("INSERT INTO {}({}) VALUES({})".format(tablename,
-                    ', '.join(keys), placeholders), vals)
+                    cur.execute(
+                        "INSERT INTO {}({}) VALUES({})".format(
+                            tablename, ", ".join(keys), placeholders
+                        ),
+                        vals,
+                    )
                     return True
             except lite.Error as e:
                 logging.warning("{}".format(e))
@@ -220,7 +228,12 @@ class Database:
         try:
             with con:
                 cur = con.cursor()
-                cur.execute("UPDATE {} SET {} WHERE {}".format(tablename, ', '.join(keys), ' AND '.join(qkeys)), vals + qvals)
+                cur.execute(
+                    "UPDATE {} SET {} WHERE {}".format(
+                        tablename, ", ".join(keys), " AND ".join(qkeys)
+                    ),
+                    vals + qvals,
+                )
                 return True
         except lite.Error as e:
             logging.warning("{}".format(e))
@@ -272,10 +285,10 @@ class Database:
     @staticmethod
     def find(
         tablename: str,
-        variables: Union[list, None]=None,
-        query: Union[dict, None]=None,
-        one: bool=False,
-        distinct: bool=False
+        variables: Union[list, None] = None,
+        query: Union[dict, None] = None,
+        one: bool = False,
+        distinct: bool = False,
     ) -> Union[list, dict, None]:
         """Find by query in tablename
 
@@ -295,7 +308,7 @@ class Database:
             keys, vals = Database._queryProcessor(query)
 
         if variables is None:
-            variables = ['*']
+            variables = ["*"]
 
         elif not isinstance(variables, list):
             logging.warning("variables must be a list!")
@@ -310,12 +323,22 @@ class Database:
             with con:
                 con.row_factory = lite.Row
                 cur = con.cursor()
-                if not query is None:
-                    cur.execute("SELECT {} {} FROM {} WHERE {}".format(distinct,
-                    ', '.join(variables), tablename, ' AND '.join(keys)), vals)
+                if query is not None:
+                    cur.execute(
+                        "SELECT {} {} FROM {} WHERE {}".format(
+                            distinct,
+                            ", ".join(variables),
+                            tablename,
+                            " AND ".join(keys),
+                        ),
+                        vals,
+                    )
                 else:
-                    cur.execute("SELECT {} {} FROM {}".format(distinct,
-                    ', '.join(variables), tablename))
+                    cur.execute(
+                        "SELECT {} {} FROM {}".format(
+                            distinct, ", ".join(variables), tablename
+                        )
+                    )
                 if one:
                     return dict(cur.fetchone())
                 else:
@@ -343,8 +366,10 @@ class Database:
         try:
             with con:
                 cur = con.cursor()
-                cur.execute("DELETE FROM {} WHERE {}".format(tablename,
-                ' AND '.join(keys)), vals)
+                cur.execute(
+                    "DELETE FROM {} WHERE {}".format(tablename, " AND ".join(keys)),
+                    vals,
+                )
                 return True
         except lite.Error as e:
             logging.warning("{}".format(e))
@@ -377,16 +402,24 @@ class Database:
 
 if __name__ == "__main__":
 
-    columns = {"id": "INTEGER PRIMARY KEY AUTOINCREMENT", 
-               "name": "TEXT", "price": "INT"}
+    columns = {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "name": "TEXT",
+        "price": "INT",
+    }
 
     Database.delete_table("cars")
     Database.create_table("cars", columns)
 
-    Database.insert("cars", [{"name": "Seat123", "price": 300},
-                             {"name": "VW", "price": 600},
-                             {"name": "Skoda", "price": 10000},
-                             {"name": "Porsche", "price": 600}])
+    Database.insert(
+        "cars",
+        [
+            {"name": "Seat123", "price": 300},
+            {"name": "VW", "price": 600},
+            {"name": "Skoda", "price": 10000},
+            {"name": "Porsche", "price": 600},
+        ],
+    )
 
 #     #Database.remove("cars", query={"name": ["=", "Audi"],
 #                                    "price": ["<=", 3000]})

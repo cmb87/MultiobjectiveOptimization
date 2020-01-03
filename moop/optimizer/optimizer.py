@@ -1,33 +1,25 @@
 """Generic optimizer
 """
-import numpy as np
-import matplotlib.pyplot as plt
 import os
-import sys
 import pickle
-import functools
+from typing import Tuple, Union, Callable
 from datetime import datetime
 
-import logging
-
-from typing import Callable, Union, Tuple
-
-from .pareto import Pareto
+import numpy as np
 
 
 # Generic Optimizer class
 class Optimizer:
-
     def __init__(
         self,
         fct: Callable,
         xbounds: list,
         ybounds: list,
         cbounds: list = [],
-        epsDominanceBins: Union[None, int]=None,
-        optidir: str = './.myOpti',
+        epsDominanceBins: Union[None, int] = None,
+        optidir: str = "./.myOpti",
         args: tuple = (),
-        parallel: bool = False
+        parallel: bool = False,
     ) -> None:
         """Generic optimizer class. Gets inherited by the different
         specific optimizers
@@ -73,13 +65,16 @@ class Optimizer:
         self.cbest = np.zeros((0, self.xdim))
 
         # Sanity checks
-        assert np.any(self.xlb < self.xub), \
-        "X: Lower bound must be smaller than upper bound"
-        assert np.any(self.ylb < self.yub), \
-        "Y: Lower bound must be smaller than upper bound"
+        assert np.any(
+            self.xlb < self.xub
+        ), "X: Lower bound must be smaller than upper bound"
+        assert np.any(
+            self.ylb < self.yub
+        ), "Y: Lower bound must be smaller than upper bound"
         if self.clb.shape[0] > 0:
-            assert np.any(self.clb < self.cub), \
-            "C: Lower bound must be smaller than upper bound"
+            assert np.any(
+                self.clb < self.cub
+            ), "C: Lower bound must be smaller than upper bound"
 
         # Database
         self.paralabels = ["para_{}".format(p) for p in range(self.xdim)]
@@ -95,11 +90,7 @@ class Optimizer:
         # Keywordarguments
         self.args = args
 
-
-    def evaluate(
-        self,
-        X: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def evaluate(self, X: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Evaluate the optimization function
 
         Parameters
@@ -116,8 +107,11 @@ class Optimizer:
         output = self.fct(X, *self.args)
 
         Y = output[0].reshape(X.shape[0], self.ydim)
-        C = output[1].reshape(X.shape[0], self.cdim) \
-            if self.cdim > 0 else np.zeros((X.shape[0], self.cdim))
+        C = (
+            output[1].reshape(X.shape[0], self.cdim)
+            if self.cdim > 0
+            else np.zeros((X.shape[0], self.cdim))
+        )
 
         # Build penalty function
         Py = Optimizer.boundaryCheck(Y, self.ylb, self.yub)
@@ -125,7 +119,7 @@ class Optimizer:
         Pc = Optimizer.boundaryCheck(C, self.clb, self.cub)
 
         # Assemble all penalties
-        P = (Py + Px + Pc)
+        P = Py + Px + Pc
 
         # Return to optimizer
         return Y, C, P
@@ -137,11 +131,7 @@ class Optimizer:
         self.currentIteration = 0
 
     @staticmethod
-    def boundaryCheck(
-        Y: np.ndarray,
-        ylb: np.ndarray,
-        yub: np.ndarray
-    ) -> np.ndarray:
+    def boundaryCheck(Y: np.ndarray, ylb: np.ndarray, yub: np.ndarray) -> np.ndarray:
         """Check boundary violation and penalizis it
 
         Parameters
@@ -161,28 +151,35 @@ class Optimizer:
         Y = Optimizer._nondimensionalize(Y, ylb, yub)
         index = (Y < 0) | (Y > 1.0)
         Y[~index] = 0.0
-        return np.sum(Y**2, axis=1).reshape(-1, 1)
+        return np.sum(Y ** 2, axis=1).reshape(-1, 1)
 
-
-    def epsDominance(self) -> None:
+    def epsDominance(self, y: np.ndarray) -> list:
         """Epsilon Dominance and delete dominated points from ranked designs
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Description
+        y : np.ndarray
+            Description
+        p : np.ndarray
+            Description
+
+        Returns
+        -------
+        list
+            Description
         """
         bins = np.linspace(0, 1, self.epsDominanceBins)
         binDistance, index2delete = {}, []
 
-        for n in range(self.yranked.shape[0]):
-            Ydim = Optimizer._nondimensionalize(
-                self.yranked[n, :],
-                self.ylb,
-                self.yub
-            )
+        for n in range(y.shape[0]):
+            Ydim = Optimizer._nondimensionalize(y[n, :], self.ylb, self.yub)
 
             inds = np.digitize(Ydim, bins)
 
-            inds_key = '-'.join(map(str, inds))
-            dist = sum(
-                [(Ydim[i] - bins[inds[i] - 1])**2 for i in range(self.ydim)]
-            )
+            inds_key = "-".join(map(str, inds))
+            dist = sum([(Ydim[i] - bins[inds[i] - 1]) ** 2 for i in range(self.ydim)])
 
             # Check if design is in bin or not
             if inds_key in list(binDistance.keys()):
@@ -195,15 +192,10 @@ class Optimizer:
             else:
                 binDistance[inds_key] = [dist, n]
 
-        self.yranked = np.delete(self.yranked, index2delete, axis=0)
-        self.xranked = np.delete(self.xranked, index2delete, axis=0)
+        return index2delete
 
     @staticmethod
-    def _nondimensionalize(
-        x: np.ndarray,
-        lb: np.ndarray,
-        ub: np.ndarray
-    ) -> np.ndarray:
+    def _nondimensionalize(x: np.ndarray, lb: np.ndarray, ub: np.ndarray) -> np.ndarray:
         """Nondimensionalize x by lower and upper bound
 
         Parameters
@@ -219,11 +211,7 @@ class Optimizer:
         return (x - lb) / (ub - lb)
 
     @staticmethod
-    def _dimensionalize(
-        x: np.ndarray,
-        lb: np.ndarray,
-        ub: np.ndarray
-    ) -> np.ndarray:
+    def _dimensionalize(x: np.ndarray, lb: np.ndarray, ub: np.ndarray) -> np.ndarray:
         """Dimensionalize x by lower and upper bound
 
         Parameters
@@ -254,7 +242,7 @@ class Optimizer:
             return
         elif len(os.listdir(self.optidir)) == 0:
             return
-        with open(self.returnLatest(), 'rb') as f1:
+        with open(self.returnLatest(), "rb") as f1:
             datalist = pickle.load(f1)
         return datalist
 
@@ -266,9 +254,12 @@ class Optimizer:
         datalist : list
             list of dataitems to store
         """
-        with open(os.path.join(self.optidir,
-                               datetime.now().strftime("%Y%m%d-%H%M%S") +
-                               '.pkl'), 'wb') as f1:
+        with open(
+            os.path.join(
+                self.optidir, datetime.now().strftime("%Y%m%d-%H%M%S") + ".pkl"
+            ),
+            "wb",
+        ) as f1:
             pickle.dump(datalist, f1)
 
     def returnLatest(self) -> None:

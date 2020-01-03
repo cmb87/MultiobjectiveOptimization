@@ -1,14 +1,14 @@
 """Particle Swarm Optimizer
 """
-import numpy as np
-from typing import Callable, Union, Tuple
+import logging
+from typing import Callable
 
-from .optimizer.optimizer import Optimizer
-from .optimizer.pareto import Pareto
+import numpy as np
+from .pareto import Pareto
+from .optimizer import Optimizer
 
 
 class Swarm(Optimizer):
- 
     def __init__(
         self,
         fct: Callable,
@@ -21,8 +21,8 @@ class Swarm(Optimizer):
         epsDominanceBins: int = 6,
         minimumSwarmSize: int = 10,
         parallel: bool = False,
-        optidir: str = './.myopti',
-        args: tuple = ()
+        optidir: str = "./.myopti",
+        args: tuple = (),
     ) -> None:
         """Particle Swarm Optimizer
 
@@ -62,12 +62,13 @@ class Swarm(Optimizer):
             epsDominanceBins=epsDominanceBins,
             parallel=parallel,
             optidir=optidir,
-            args=args
+            args=args,
         )
 
         # Initialize swarm
-        self.particles = [Particle(self.xdim, pid, vinitScale=0.5)
-                          for pid in range(nparticles)]
+        self.particles = [
+            Particle(self.xdim, pid, vinitScale=0.5) for pid in range(nparticles)
+        ]
         self.minimumSwarmSize = minimumSwarmSize
         self.particleReductionRate = 0.99
         self.xbest = np.zeros((0, self.xdim))
@@ -97,41 +98,38 @@ class Swarm(Optimizer):
             logging.info(" Episode : {}".format(self.currentIteration))
 
             # Remove particles
-            SwarmSizeTarget = int(self.particleReductionRate * self.swarmSize) \
-                if self.swarmSize > self.minimumSwarmSize else \
-                self.minimumSwarmSize
+            SwarmSizeTarget = (
+                int(self.particleReductionRate * self.swarmSize)
+                if self.swarmSize > self.minimumSwarmSize
+                else self.minimumSwarmSize
+            )
 
             while self.swarmSize > SwarmSizeTarget:
                 self.particles.pop()
 
             # Evaluate the new particle's position
-            x = np.asarray([Optimizer._dimensionalize(
-                particle.x,
-                self.xlb,
-                self.xub
-            ) for particle in self.particles])
+            x = np.asarray(
+                [
+                    Optimizer._dimensionalize(particle.x, self.xlb, self.xub)
+                    for particle in self.particles
+                ]
+            )
 
             # Evaluate it
             y, c, p = self.evaluate(x)
 
             # Update particle targets
             for i, particle in enumerate(self.particles):
-                particle.y = Optimizer._nondimensionalize(
-                    y[i, :],
-                    self.ylb,
-                    self.yub
-                ) + p[i, :]
+                particle.y = (
+                    Optimizer._nondimensionalize(y[i, :], self.ylb, self.yub) + p[i, :]
+                )
 
             # Determine new pbest
             [particle.updatePersonalBest() for particle in self.particles]
 
             # Determine new gbest
             paretoIndex, _ = Pareto.computeParetoOptimalMember(
-                Optimizer._nondimensionalize(
-                    y,
-                    self.ylb,
-                    self.yub
-                ) + p
+                Optimizer._nondimensionalize(y, self.ylb, self.yub) + p
             )
 
             # Allocate best particles
@@ -142,27 +140,32 @@ class Swarm(Optimizer):
             for i, particle in enumerate(self.particles):
                 idx = np.random.choice(paretoIndex, 1, replace=False)[0]
                 particle.xgbest = Optimizer._nondimensionalize(
-                    x[idx, :],
-                    self.xlb,
-                    self.xub
+                    x[idx, :], self.xlb, self.xub
                 )
 
                 particle.ygbest = Optimizer._nondimensionalize(
-                    y[idx, :],
-                    self.ylb,
-                    self.yub
+                    y[idx, :], self.ylb, self.yub
                 )
 
             # Apply eps dominance
-            self.epsDominance()
+            index2delete = self.epsDominance(self.ybest)
+            self.xbest = np.delete(self.xbest, index2delete, axis=0)
+            self.ybest = np.delete(self.ybest, index2delete, axis=0)
+            self.cbest = np.delete(self.cbest, index2delete, axis=0)
 
             # Update particles
             [particle.update() for particle in self.particles]
 
             # Store
-            self.store([self.currentIteration, self.particles,
-                        self.xbest, self.ybest, self.cbest])
-
+            self.store(
+                [
+                    self.currentIteration,
+                    self.particles,
+                    self.xbest,
+                    self.ybest,
+                    self.cbest,
+                ]
+            )
 
     def restart(self, resetParticles: bool = False) -> None:
         """Restart algorithm
@@ -174,8 +177,13 @@ class Swarm(Optimizer):
         """
 
         # Get files from pickle
-        [self.currentIteration, self.particles,
-         self.xbest, self.ybest, self.cbest] = self.load()
+        [
+            self.currentIteration,
+            self.particles,
+            self.xbest,
+            self.ybest,
+            self.cbest,
+        ] = self.load()
 
         # Reset particles
         if resetParticles:
@@ -184,13 +192,12 @@ class Swarm(Optimizer):
 
 # Particle
 class Particle:
-    
     def __init__(
         self,
         xdim: int,
         particleID: int,
         vinitScale: float = 0.1,
-        mutateRate: float = 0.03
+        mutateRate: float = 0.03,
     ) -> None:
         """Constructor of a particle
 
@@ -228,14 +235,12 @@ class Particle:
         # Mutation rate
         self.mutateRate = mutateRate
 
-
     def reset(self) -> None:
         """Reset particle
         """
         self.x = np.random.rand(self.xdim)
         self.v = 1.0 * (-1.0 + 2.0 * np.random.rand(self.xdim))
         self.resetCtr = 0
-
 
     def updatePersonalBest(self) -> None:
         """Update personal best particle
@@ -270,8 +275,11 @@ class Particle:
         r2 = np.random.rand()
 
         # Update particle velocity
-        self.v = self.w * self.v + self.c1 * r1 * (self.xpbest - self.x) + \
-        self.c2 * r2 * (self.xgbest - self.x)
+        self.v = (
+            self.w * self.v
+            + self.c1 * r1 * (self.xpbest - self.x)
+            + self.c2 * r2 * (self.xgbest - self.x)
+        )
         self.x += self.v
 
         # Mutation

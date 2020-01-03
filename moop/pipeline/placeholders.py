@@ -1,17 +1,15 @@
-
 import logging
-from typing import Callable, Union, Tuple, Optional
+from typing import Union, Callable, Optional
 
 
-class Placeholder():
-
+class Placeholder:
     def __init__(
         self,
-        nid: int,
+        nid: Union[int, str],
         name: str = "placeholder",
         noutputs: int = 1,
         ninputs: int = 0,
-        value: Optional = None
+        value: Optional = None,
     ):
         """This is the placeholder object
 
@@ -45,8 +43,10 @@ class Placeholder():
             Description
         """
         if not len(list(set(self.output_cons))) == self.noutputs:
-            logging.info(f"Warning for {self.name}(id={self.nid}): \
-                Not all or too many output connectors are used")
+            logging.info(
+                f"Warning for {self.name}(id={self.nid}): \
+                Not all or too many output connectors are used"
+            )
         return True
 
     def addToNode(self, nodeobj: Callable, connector: int = 0) -> None:

@@ -1,17 +1,15 @@
-
 import logging
-from typing import Callable, Union, Tuple, Optional
+from typing import Union, Callable
 
 
-class Variable():
-
+class Variable:
     def __init__(
         self,
-        nid: int,
+        nid: Union[int, str],
         name: str = "variable",
         value: list = [0],
         ninputs: int = 0,
-        noutputs: int = 0
+        noutputs: int = 0,
     ) -> None:
         """This is the Variable object
 
@@ -37,7 +35,6 @@ class Variable():
         self.ninputs = 0
         self.value = value
 
-
     def sanity_check(self) -> bool:
         """Sanity check for this node
 
@@ -47,10 +44,11 @@ class Variable():
             Description
         """
         if not len(list(set(self.output_cons))) == len(self.value):
-            logging.info(f"Warning for {self.name}(id={self.nid}): Not all or \
-                too many output connectors are used")
+            logging.info(
+                f"Warning for {self.name}(id={self.nid}): Not all or \
+                too many output connectors are used"
+            )
         return True
-
 
     def addToNode(self, nodeobj: Callable, connector: int = 0) -> None:
         """Add a receiving node
@@ -64,7 +62,6 @@ class Variable():
         """
         self.output_nodes.append(nodeobj)
         self.output_cons.append(connector)
-
 
     def __repr__(self):
         return "<Variable>"

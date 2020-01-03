@@ -1,16 +1,16 @@
-
-import numpy as np
 import logging
 
-from pipeline.graph import OptimizationGraph
-from optimizer.antcolony import ACO
-
-from test_functions import rosenbrock
-from test_functions import rosenbrockContour
-from test_functions import rosenbrockContourConstrained
-from test_functions import binhAndKorn
-from test_functions import animateSwarm, animateSwarm2
-
+import numpy as np
+from .pipeline.graph import OptimizationGraph
+from .optimizer.antcolony import ACO
+from .optimizer.testfunctions import (
+    rosenbrock,
+    binhAndKorn,
+    animateSwarm,
+    animateSwarm2,
+    rosenbrockContour,
+    rosenbrockContourConstrained,
+)
 
 # Set logging formats
 logging.basicConfig(
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     CASE1 = True
     CASE2 = True
-    CASE3 = False
+    CASE3 = True
     CASE4 = True
 
     # ========================================================
@@ -40,8 +40,12 @@ if __name__ == "__main__":
         cbounds = []
 
         def branin(X, a, b, c, r, s, t):
-            return a * (X[:, 1] - b * X[:, 0]**2 + c * X[:, 0] - r)**2 +\
-             s * (1 - t) * np.cos(X[:, 0]) + s, None
+            return (
+                a * (X[:, 1] - b * X[:, 0] ** 2 + c * X[:, 0] - r) ** 2
+                + s * (1 - t) * np.cos(X[:, 0])
+                + s,
+                None,
+            )
 
         aco = ACO(
             branin,
@@ -51,7 +55,7 @@ if __name__ == "__main__":
             colonySize=10,
             q=0.3,
             eps=0.2,
-            args=(1, 5.1 / (4 * np.pi**2), 5 / np.pi, 6, 10, 1 / (8 * np.pi))
+            args=(1, 5.1 / (4 * np.pi ** 2), 5 / np.pi, 6, 10, 1 / (8 * np.pi)),
         )
         aco.initialize()
         aco.iterate(itermax)
@@ -75,7 +79,7 @@ if __name__ == "__main__":
             tindex=[0],
             cindex=[],
             xlabels=["x", "y"],
-            rlabels=["z", "c"]
+            rlabels=["z", "c"],
         )
 
         graph.singleProcessChain(rosenbrock)
@@ -86,8 +90,7 @@ if __name__ == "__main__":
         ybounds = [(0, 13500)]
         cbounds = []
 
-        aco = ACO(graph.run, xbounds, ybounds, cbounds,
-                  colonySize=10, q=0.3, eps=0.2)
+        aco = ACO(graph.run, xbounds, ybounds, cbounds, colonySize=10, q=0.3, eps=0.2)
 
         aco.initialize()
         aco.iterate(20)
@@ -98,8 +101,7 @@ if __name__ == "__main__":
         # Animation
         Xcine, Ycine = graph.postprocessAnimate()
 
-        animateSwarm(Xcine, Ycine, rosenbrockContour,
-                     xbounds=xbounds, store=False)
+        animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
 
         logging.info("CASE2 - passed :)")
 
@@ -111,11 +113,7 @@ if __name__ == "__main__":
 
         # Define toolchain
         graph = OptimizationGraph(
-            xdim=2,
-            rdim=4,
-            tindex=[0, 1],
-            cindex=[2, 3],
-            xlabels=["x", "y"]
+            xdim=2, rdim=4, tindex=[0, 1], cindex=[2, 3], xlabels=["x", "y"]
         )
 
         graph.singleProcessChain(binhAndKorn)
@@ -124,17 +122,9 @@ if __name__ == "__main__":
         itermax = 30
         xbounds = [(0, 5), (0, 3)]
         ybounds = [(0, 60), (0, 60)]
-        cbounds = [(0, 25), (7.7, 1e+2)]
+        cbounds = [(0, 25), (7.7, 1e2)]
 
-        aco = ACO(
-            graph.run,
-            xbounds,
-            ybounds,
-            cbounds,
-            colonySize=10,
-            q=0.1,
-            eps=0.1
-        )
+        aco = ACO(graph.run, xbounds, ybounds, cbounds, colonySize=10, q=0.1, eps=0.1)
 
         aco.initialize()
         aco.iterate(itermax)
@@ -144,6 +134,7 @@ if __name__ == "__main__":
 
         logging.info("CASE3 - passed :)")
 
+    # ========================================================
     if CASE4:
         logging.info(50 * "=")
         logging.info("CASE4 - Start Testing")
@@ -155,9 +146,10 @@ if __name__ == "__main__":
             tindex=[0],
             cindex=[1],
             xlabels=["x", "y"],
-            rlabels=["z", "c"]
+            rlabels=["z", "c"],
         )
 
+        # Assign optimization function to graph
         graph.singleProcessChain(rosenbrock)
 
         # Optimizer
@@ -166,15 +158,7 @@ if __name__ == "__main__":
         ybounds = [(0, 13500)]
         cbounds = [(0, 1.3)]
 
-        aco = ACO(
-            graph.run,
-            xbounds,
-            ybounds,
-            cbounds,
-            colonySize=10,
-            q=2.1,
-            eps=0.1
-        )
+        aco = ACO(graph.run, xbounds, ybounds, cbounds, colonySize=10, q=2.1, eps=0.1)
 
         aco.initialize()
         aco.iterate(itermax)
@@ -182,11 +166,7 @@ if __name__ == "__main__":
         Xcine, Ycine = graph.postprocessAnimate()
 
         animateSwarm(
-            Xcine,
-            Ycine,
-            rosenbrockContourConstrained,
-            xbounds=xbounds,
-            store=False
+            Xcine, Ycine, rosenbrockContourConstrained, xbounds=xbounds, store=False
         )
 
         logging.info("CASE4 - passed :)")

@@ -1,28 +1,28 @@
 """Ant colony optimization
 """
 import logging
-import numpy as np
 from typing import Callable
 
-from .optimizer import Optimizer
+import numpy as np
 from .pareto import Pareto
+from .optimizer import Optimizer
+
 
 class ACO(Optimizer):
-
     def __init__(
-                self,
-                fct: Callable,
-                xbounds: list,
-                ybounds: list,
-                cbounds: list = [],
-                nparticles: int = 10,
-                q: float = 0.1,
-                eps: float = 0.1,
-                colonySize: int = 10,
-                archiveSize: int = 10,
-                parallel: int = False,
-                optidir: str = './.myopti',
-                args: tuple = ()
+        self,
+        fct: Callable,
+        xbounds: list,
+        ybounds: list,
+        cbounds: list = [],
+        nparticles: int = 10,
+        q: float = 0.1,
+        eps: float = 0.1,
+        colonySize: int = 10,
+        archiveSize: int = 10,
+        parallel: int = False,
+        optidir: str = "./.myopti",
+        args: tuple = (),
     ) -> None:
         """Ant colony optimization
 
@@ -54,8 +54,15 @@ class ACO(Optimizer):
         args : tuple, optional
             Args to pass for the optimization function (fct)
         """
-        super().__init__(fct, xbounds, ybounds, cbounds=cbounds,
-                         optidir=optidir, parallel=parallel, args=args)
+        super().__init__(
+            fct,
+            xbounds,
+            ybounds,
+            cbounds=cbounds,
+            optidir=optidir,
+            parallel=parallel,
+            args=args,
+        )
 
         self.colonySize = colonySize
         self.archiveSize = archiveSize
@@ -70,7 +77,6 @@ class ACO(Optimizer):
         self.q = q
         self.eps = eps
 
-
     def iterate(self, itermax: int) -> None:
         """Iterate
 
@@ -80,9 +86,7 @@ class ACO(Optimizer):
             Maximal number of iterations
         """
         x = Optimizer._dimensionalize(
-            np.random.rand(self.colonySize, self.xdim),
-            self.xlb,
-            self.xub
+            np.random.rand(self.colonySize, self.xdim), self.xlb, self.xub
         )
 
         # Start iterating
@@ -95,14 +99,10 @@ class ACO(Optimizer):
 
             # Append value to so far best seen designs
             xNorm = Optimizer._nondimensionalize(
-                np.vstack((x, self.xranked)),
-                self.xlb,
-                self.xub
+                np.vstack((x, self.xranked)), self.xlb, self.xub
             )
             yNorm = Optimizer._nondimensionalize(
-                np.vstack((y, self.yranked)),
-                self.ylb,
-                self.yub
+                np.vstack((y, self.yranked)), self.ylb, self.yub
             )
 
             c = np.vstack((c, self.cranked))
@@ -117,28 +117,29 @@ class ACO(Optimizer):
             ranks, p, c = ranks[idxs], p[idxs], c[idxs, :]
 
             self.xranked = Optimizer._dimensionalize(
-                xNorm[:self.archiveSize, :],
-                self.xlb,
-                self.xub
+                xNorm[: self.archiveSize, :], self.xlb, self.xub
             )
             self.yranked = Optimizer._dimensionalize(
-                yNorm[:self.archiveSize, :],
-                self.ylb,
-                self.yub
+                yNorm[: self.archiveSize, :], self.ylb, self.yub
             )
-            self.cranked = c[:self.archiveSize, :]
-            self.pranked = p[:self.archiveSize, :]
-            ranks = ranks[:self.archiveSize]
+            self.cranked = c[: self.archiveSize, :]
+            self.pranked = p[: self.archiveSize, :]
+            ranks = ranks[: self.archiveSize]
 
             # Store best values
-            self.xbest = self.xranked[ranks[:self.archiveSize] < 1, :]
-            self.ybest = self.yranked[ranks[:self.archiveSize] < 1, :]
-            self.cbest = self.cranked[ranks[:self.archiveSize] < 1, :]
+            self.xbest = self.xranked[ranks[: self.archiveSize] < 1, :]
+            self.ybest = self.yranked[ranks[: self.archiveSize] < 1, :]
+            self.cbest = self.cranked[ranks[: self.archiveSize] < 1, :]
 
             # Calculate weights
-            omega = 1.0 / (self.q * self.archiveSize * np.sqrt(2 * np.pi)) *\
-                np.exp((-ranks**2 + 2 * ranks - 1.0) / (2 * self.q**2 *\
-                self.archiveSize**2))
+            omega = (
+                1.0
+                / (self.q * self.archiveSize * np.sqrt(2 * np.pi))
+                * np.exp(
+                    (-(ranks ** 2) + 2 * ranks - 1.0)
+                    / (2 * self.q ** 2 * self.archiveSize ** 2)
+                )
+            )
 
             # Norm it
             p = omega / np.sum(omega)
@@ -150,8 +151,9 @@ class ACO(Optimizer):
                 for i in range(self.xdim):
                     j = np.random.choice(np.arange(self.archiveSize), p=p)
                     Sji = self.xranked[j, :][i]
-                    sigma = self.eps * np.sum(np.abs(self.xranked[j, i] -\
-                        self.xranked[:, i]))
+                    sigma = self.eps * np.sum(
+                        np.abs(self.xranked[j, i] - self.xranked[:, i])
+                    )
 
                     # Sample from normal distribution
                     x[l, i] = Sji + sigma * np.random.normal()

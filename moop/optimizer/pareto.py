@@ -1,11 +1,11 @@
 """Pareto Module
 """
+from typing import Tuple, Union
+
 import numpy as np
-from typing import Callable, Union, Tuple
 
 
 class Pareto:
-
     @staticmethod
     def cull(pts: list, dominates: list) -> Tuple[list, list]:
         """Evaluate Pareto rank
@@ -29,12 +29,12 @@ class Pareto:
             candidate = remaining[0]
             new_remaining = []
             for other in remaining[1:]:
-                [new_remaining,
-                 dominated][Pareto.dominates(candidate, other)].append(other)
+                [new_remaining, dominated][Pareto.dominates(candidate, other)].append(
+                    other
+                )
 
-            if not any(Pareto.dominates(other, candidate)
-                       for other in new_remaining):
-                cleared.append(candidate)   # PARETO POINT
+            if not any(Pareto.dominates(other, candidate) for other in new_remaining):
+                cleared.append(candidate)  # PARETO POINT
             else:
                 dominated.append(candidate)
             remaining = new_remaining
@@ -61,8 +61,7 @@ class Pareto:
 
     @staticmethod
     def computeParetoOptimalMember(
-        Y: np.ndarray,
-        index: Union[None, list]=None
+        Y: np.ndarray, index: Union[None, list] = None
     ) -> Tuple[list, list]:
         """Compute Rank 0 members from given set of target labels
 
@@ -74,17 +73,15 @@ class Pareto:
             Description
         """
 
-        index = np.arange(0, Y.shape[0]) \
-                if index is None else np.asarray(index)
+        index = np.arange(0, Y.shape[0]) if index is None else np.asarray(index)
 
         Ypareto, Ydominated = Pareto.cull(Y.tolist(), Pareto.dominates)
-        paretoIndex = [index[np.all(Y == ypareto, axis=1)][0]
-                       for i, ypareto in enumerate(Ypareto)]
-        dominatedIndex = [i for i in index
-                          if not i in paretoIndex]
+        paretoIndex = [
+            index[np.all(Y == ypareto, axis=1)][0] for i, ypareto in enumerate(Ypareto)
+        ]
+        dominatedIndex = [i for i in index if i not in paretoIndex]
 
         return paretoIndex, dominatedIndex
-
 
     @staticmethod
     def computeParetoRanks(Y: np.ndarray) -> np.ndarray:
@@ -105,8 +102,7 @@ class Pareto:
         paretoRank = 0
         while len(indexunranked) > 0:
             paretoIndex, indexunranked = Pareto.computeParetoOptimalMember(
-                Y[indexunranked, :],
-                index=indexunranked
+                Y[indexunranked, :], index=indexunranked
             )
             ranks[paretoIndex] = paretoRank
             paretoRank += 1
