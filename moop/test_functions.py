@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 
 def coordinatesSplitter(X):
     if X.ndim == 2:
-        x,y = X[:,0],X[:,1]
+        x, y = X[:, 0],X[:, 1]
     elif X.ndim == 1:
-        x,y = X[0],X[1]
+        x,y = X[0], X[1]
     else:
         print("Datatype not understood")
         return

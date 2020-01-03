@@ -1,15 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.cm import cool
-import sys
-import os
-from matplotlib import animation
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
-
-from src.pipeline.graph import OptimizationGraph
-from src.optimizer.pareto import Pareto
-from src.optimizer.genetic import GA
+from pipeline.graph import OptimizationGraph
+from optimizer.genetic import GA
 
 from test_functions import rosenbrock
 from test_functions import rosenbrockContour

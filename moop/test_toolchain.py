@@ -7,49 +7,36 @@ from matplotlib import animation
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 
-from src.toolchain import Toolchain
 from src.pareto import Pareto
 from src.optimizer import Swarm
-from test_functions import rosenbrock
+from src.toolchain import Toolchain
+from test_functions import rosenbrockToolchain
 from test_functions import rosenbrockContour
-from test_functions import rosenbrockContourConstrained
-from test_functions import binhAndKorn
 from test_functions import animateSwarm, animateSwarm2
-
 from src.database import Database
 
+### Define toolchain ###
+tc = Toolchain(2, 1, trgtIndex=[0])
+tc.chain = rosenbrockToolchain
 
-if __name__ == "__main__":
 
-    if True:
+### Optimizer settings ###
+itermax = 20
+xbounds = [(-4,4),(-4,4)]
+ybounds = [(0,13500)]
+cbounds = []
 
-        ### Define toolchain ###
-        tc = Toolchain(2, 2, trgtIndex=[0])
-        tc.chain = rosenbrock
+swarm = Swarm(tc.execute, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10)
+swarm.initialize()
+swarm.iterate(itermax)
 
-        ### Optimizer stuff ###
-        itermax = 40
-        xbounds = [(-4,4),(-4,4)]
-        ybounds = [(0,13500)]
-        cbounds = []
+swarm.restart(resetParticles=False)
+swarm.iterate(5)
 
-        swarm = Swarm(tc.execute, xbounds, ybounds, cbounds, nparticles=10, minimumSwarmSize=10)
+### Toolchain postprocessing ###
+Xcine, Ycine = tc.postprocessAnimate()
 
-        swarm.initialize()
-        swarm.iterate(itermax)
-
-        swarm.restart(resetParticles=False)
-        swarm.iterate(5)
-
-        ### Postprocessing ###
-        #Xcine, Ycine = tc.postprocessAnimate()
-        #animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
-        #tc.postprocess()
-
-        ### 
-        tc.storeToolchain()
-        tc2 = Toolchain.find_by_id(1)
-        print(tc2)
-
-        tc3 = Toolchain.find_all()
-        print(tc3)
+animateSwarm(Xcine, Ycine, rosenbrockContour, xbounds=xbounds, store=False)
+tc.postprocess()
+# Xbest, Ybest, lastIteration = swarm.postprocessReturnBest()
+# print(Ybest)

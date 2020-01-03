@@ -7,8 +7,7 @@ from typing import Callable, Union, Tuple
 class Pareto:
 
     @staticmethod
-    # def cull(pts: list, dominates: list) -> Union(list, list):
-    def cull(pts, dominates):
+    def cull(pts: list, dominates: list) -> Tuple[list, list]:
         """Evaluate Pareto rank
 
         Parameters
@@ -61,11 +60,10 @@ class Pareto:
         return all(r <= rc for r, rc in zip(row, rowCandidate))
 
     @staticmethod
-    # def computeParetoOptimalMember(
-    #   Y: np.ndarray,
-    #   index: Union[None, list]=None
-    # ) -> Tuple(list, list):
-    def computeParetoOptimalMember(Y, index = None):
+    def computeParetoOptimalMember(
+        Y: np.ndarray,
+        index: Union[None, list]=None
+    ) -> Tuple[list, list]:
         """Compute Rank 0 members from given set of target labels
 
         Parameters
@@ -76,8 +74,8 @@ class Pareto:
             Description
         """
 
-        index = np.arange(0, Y.shape[0]) if index is None \
-        else np.asarray(index)
+        index = np.arange(0, Y.shape[0]) \
+                if index is None else np.asarray(index)
 
         Ypareto, Ydominated = Pareto.cull(Y.tolist(), Pareto.dominates)
         paretoIndex = [index[np.all(Y == ypareto, axis=1)][0]
