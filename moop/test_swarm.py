@@ -28,8 +28,6 @@ if __name__ == "__main__":
     CASE3 = True
     CASE4 = True
 
-    #  wdw dwd
-
     # ========================================================
     if CASE1:
         logging.info(50 * "=")
