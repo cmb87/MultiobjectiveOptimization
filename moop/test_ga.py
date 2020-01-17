@@ -1,9 +1,9 @@
 import logging
 
 import numpy as np
-from .pipeline.graph import OptimizationGraph
-from .optimizer.genetic import GA
-from .optimizer.testfunctions import (
+from pipeline.graph import OptimizationGraph
+from optimizer.genetic import GA
+from optimizer.testfunctions import (
     rosenbrock,
     animateSwarm,
     rosenbrockContourConstrained,

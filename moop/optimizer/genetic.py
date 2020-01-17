@@ -132,10 +132,14 @@ class GA(Optimizer):
             self.pranked = np.delete(self.pranked, index2delete, axis=0)
             self.cranked = np.delete(self.cranked, index2delete, axis=0)
 
+            ranksBest = np.delete(ranks[:self.npop], index2delete, axis=0)
+
+
             # Store best values
-            self.xbest = self.xranked[ranks[: self.npop] < 1, :]
-            self.ybest = self.yranked[ranks[: self.npop] < 1, :]
-            self.cbest = self.cranked[ranks[: self.npop] < 1, :]
+
+            self.xbest = self.xranked[ranksBest < 1, :]
+            self.ybest = self.yranked[ranksBest < 1, :]
+            self.cbest = self.cranked[ranksBest < 1, :]
 
             # Filter by eps dominance
             logging.debug("mean", x.mean(), "std", x.std())
