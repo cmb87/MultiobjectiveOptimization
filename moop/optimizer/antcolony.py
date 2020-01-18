@@ -1,7 +1,7 @@
 """Ant colony optimization
 """
 import logging
-from typing import Callable
+from typing import Callable, Union
 
 import numpy as np
 from .pareto import Pareto
@@ -15,6 +15,7 @@ class ACO(Optimizer):
         xbounds: list,
         ybounds: list,
         cbounds: list = [],
+        callback: Union[Callable, None] = None,
         nparticles: int = 10,
         q: float = 0.1,
         eps: float = 0.1,
@@ -25,7 +26,7 @@ class ACO(Optimizer):
         args: tuple = (),
     ) -> None:
         """Ant colony optimization
-
+        
         Parameters
         ----------
         fct : Callable
@@ -36,6 +37,9 @@ class ACO(Optimizer):
             Region of interest [[y1low, y1high], [y2low, y2high], ...]
         cbounds : list, optional
             Constraint bounds [[c1low, c1high], [c2low, c2high], ...]
+        callback : Union[Callable, None], optional
+            Callback function, executed every iteration. Must be of form
+            f(x, y, c, nIter)
         nparticles : int, optional
             Description
         q : float, optional
@@ -59,6 +63,7 @@ class ACO(Optimizer):
             xbounds,
             ybounds,
             cbounds=cbounds,
+            callback=callback,
             optidir=optidir,
             parallel=parallel,
             args=args,

@@ -1,7 +1,7 @@
 """Particle Swarm Optimizer
 """
 import logging
-from typing import Callable
+from typing import Callable, Union
 
 import numpy as np
 from .pareto import Pareto
@@ -15,6 +15,7 @@ class Swarm(Optimizer):
         xbounds: list,
         ybounds: list,
         cbounds: list = [],
+        callback: Union[Callable, None] = None,
         nparticles: int = 10,
         nichingDistanceY: float = 0.1,
         nichingDistanceX: float = 0.1,
@@ -36,6 +37,9 @@ class Swarm(Optimizer):
             Region of interest [[y1low, y1high], [y2low, y2high], ...]
         cbounds : list, optional
             Constraint bounds [[c1low, c1high], [c2low, c2high], ...]
+        callback : Union[Callable, None], optional
+            Callback function, executed every iteration. Must be of form
+            f(x, y, c, nIter)
         nparticles : int, optional
             Description
         nichingDistanceY : float, optional
@@ -59,6 +63,7 @@ class Swarm(Optimizer):
             xbounds,
             ybounds,
             cbounds=cbounds,
+            callback=callback,
             epsDominanceBins=epsDominanceBins,
             parallel=parallel,
             optidir=optidir,

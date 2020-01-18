@@ -16,6 +16,7 @@ class Optimizer:
         xbounds: list,
         ybounds: list,
         cbounds: list = [],
+        callback: Union[Callable, None] = None,
         epsDominanceBins: Union[None, int] = None,
         optidir: str = "./.myOpti",
         args: tuple = (),
@@ -34,6 +35,9 @@ class Optimizer:
             Region of interest [[y1low, y1high], [y2low, y2high], ...]
         cbounds : list, optional
             Constraint bounds [[c1low, c1high], [c2low, c2high], ...]
+        callback : Union[Callable, None], optional
+            Callback function, executed every iteration. Must be of form
+            f(x, y, c, nIter)
         epsDominanceBins : Union[None, int], optional
             Number of bins for epsDominance calculation
         optidir : str, optional
@@ -45,6 +49,7 @@ class Optimizer:
             Args to pass for the optimization function (fct)
         """
         self.fct = fct
+        self.callback = callback
         self.currentIteration = 0
         self.parallel = parallel
 
@@ -120,6 +125,10 @@ class Optimizer:
 
         # Assemble all penalties
         P = Py + Px + Pc
+
+        # callback:
+        if self.callback is not None:
+            self.callback(X, Y, C, self.currentIteration)
 
         # Return to optimizer
         return Y, C, P

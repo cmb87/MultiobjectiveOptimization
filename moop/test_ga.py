@@ -21,8 +21,8 @@ if __name__ == "__main__":
     # ========================================================
 
     CASE1 = True
-    CASE2 = True
-    CASE3 = True
+    CASE2 = False
+    CASE3 = False
 
     # ========================================================
     if CASE1:
@@ -43,11 +43,17 @@ if __name__ == "__main__":
                 None,
             )
 
+        t1 = []
+        def myCallBackFunction(X, Y, C, iter):
+            t1.append([X,Y,C,iter])
+
+
         ga = GA(
             branin,
             xbounds,
             ybounds,
             cbounds,
+            callback = myCallBackFunction,
             npop=10,
             args=(1, 5.1 / (4 * np.pi ** 2), 5 / np.pi, 6, 10, 1 / (8 * np.pi)),
         )
@@ -59,6 +65,8 @@ if __name__ == "__main__":
 
         logging.info(ga.xbest)
         logging.info(ga.ybest)
+
+        print(t1)
 
         logging.info("CASE1 - passed :)")
 

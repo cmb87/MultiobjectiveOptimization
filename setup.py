@@ -6,7 +6,7 @@ from setuptools import find_packages
 
 setup(
     name="moop",
-    version="0.0.0.1",
+    version="0.0.0.2",
     description="Multiobjective Optimization Package",
     author=["Christian Peeren"],
     author_email=["christian.peeren@gmail.com"],
@@ -15,9 +15,8 @@ setup(
     include_package_data=True,
     license="MIT",
     install_requires=[
-        "pip==19.1.1",
-        "matplotlib==3.1.2",
-        "scipy ==1.4.1",
-        "numpy == 1.18.0",
+        "matplotlib",
+        "scipy",
+        "numpy",
     ],
 )

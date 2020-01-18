@@ -1,7 +1,7 @@
 """Genetic algorithm module
 """
 import logging
-from typing import Callable
+from typing import Callable, Union
 
 import numpy as np
 from .pareto import Pareto
@@ -15,6 +15,7 @@ class GA(Optimizer):
         xbounds: list,
         ybounds: list,
         cbounds: list = [],
+        callback: Union[Callable, None] = None,
         npop: int = 20,
         nichingDistanceY: float = 0.1,
         nichingDistanceX: float = 0.1,
@@ -24,7 +25,6 @@ class GA(Optimizer):
         args: tuple = (),
     ) -> None:
         """Constructor of Genetic Algorithm
-
         Parameters
         ----------
         fct : Callable
@@ -35,6 +35,9 @@ class GA(Optimizer):
             Region of interest [[y1low, y1high], [y2low, y2high], ...]
         cbounds : list, optional
             Constraint bounds [[c1low, c1high], [c2low, c2high], ...]
+        callback : Union[Callable, None], optional
+            Callback function, executed every iteration. Must be of form
+            f(x, y, c, nIter)
         npop : int, optional
             Population Count
         nichingDistanceY : float, optional
@@ -56,6 +59,7 @@ class GA(Optimizer):
             xbounds,
             ybounds,
             cbounds=cbounds,
+            callback=callback,
             epsDominanceBins=epsDominanceBins,
             parallel=parallel,
             optidir=optidir,
